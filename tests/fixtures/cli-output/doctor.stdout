@@ -1,0 +1,12 @@
+kite 0.1.0
+
+✓ Config     /home/user/config.json
+✓ API key    set
+✓ User ID    set
+✓ Session    set
+– Kite API   skipped (--no-live)
+
+API root  http://fixture.invalid
+Ticker    ws://fixture.invalid
+
+All checks passed.

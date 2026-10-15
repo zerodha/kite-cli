@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "kite API error InputException (HTTP 200): business request rejected",
+    "type": "InputException"
+  },
+  "ok": false
+}

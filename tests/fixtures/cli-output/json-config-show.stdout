@@ -1,0 +1,12 @@
+{
+  "effective": {
+    "access_token": "test…oken",
+    "api_key": "test-key",
+    "api_root": "http://fixture.invalid",
+    "app_uuid": "00000000-0000-4000-8000-000000000000",
+    "ticker_url": "ws://fixture.invalid",
+    "user_id": "********"
+  },
+  "exists": true,
+  "path": "/home/user/config.json"
+}

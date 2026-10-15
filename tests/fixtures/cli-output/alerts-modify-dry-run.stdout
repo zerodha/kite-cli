@@ -1,0 +1,12 @@
+DRY RUN  nothing was sent to Kite
+
+PUT /alerts/550e8400-e29b-41d4-a716-446655440000
+lhs_attribute      LastTradedPrice
+lhs_exchange       INDICES
+lhs_tradingsymbol  NIFTY 50
+name               NIFTY 50
+operator           >=
+rhs_constant       28000
+rhs_type           constant
+status             enabled
+type               simple

@@ -1,0 +1,7 @@
+{
+  "content_type": "text/plain",
+  "http_status": 200,
+  "response": {
+    "body": "hello"
+  }
+}

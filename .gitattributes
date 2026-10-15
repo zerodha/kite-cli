@@ -1,0 +1,2 @@
+tests/fixtures/cli-output/* text eol=lf
+tests/fixtures/cli-output/*.stdout whitespace=-blank-at-eol

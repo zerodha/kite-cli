@@ -1,0 +1,15 @@
+Net positions
+PRODUCT  INSTRUMENT              QTY     AVG        LTP      P&L
+NRML     MCX:LEADMINI17DECFUT      1  161.05     161.05     0.00
+NRML     MCX:GOLDGUINEA17DECFUT    0    0.00  23,355.00  +801.00
+CO       NSE:SBIN                  0    0.00     308.40    -2.00
+────────────────────────────────────────────────────────────────
+Total                                                    +799.00
+
+Day positions
+PRODUCT  INSTRUMENT              QTY        AVG        LTP     P&L
+NRML     MCX:GOLDGUINEA17DECFUT   -3  23,340.00  23,355.00  -93.00
+NRML     MCX:LEADMINI17DECFUT      1     161.05     161.05    0.00
+CO       NSE:SBIN                  0       0.00     308.40   -2.00
+──────────────────────────────────────────────────────────────────
+Total                                                       -95.00

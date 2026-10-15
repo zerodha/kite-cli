@@ -1,0 +1,151 @@
+{
+  "charges": {
+    "brokerage": 40,
+    "exchange_turnover_charge": 0,
+    "gst": {
+      "cgst": 0,
+      "igst": 0,
+      "sgst": 0,
+      "total": 0
+    },
+    "sebi_turnover_charge": 0.003195,
+    "stamp_duty": 0,
+    "total": 0,
+    "transaction_tax": 0,
+    "transaction_tax_type": ""
+  },
+  "final": {
+    "additional": 0,
+    "bo": 0,
+    "cash": 0,
+    "charges": {
+      "brokerage": 0,
+      "exchange_turnover_charge": 0,
+      "gst": {
+        "cgst": 0,
+        "igst": 0,
+        "sgst": 0,
+        "total": 0
+      },
+      "sebi_turnover_charge": 0,
+      "stamp_duty": 0,
+      "total": 0,
+      "transaction_tax": 0,
+      "transaction_tax_type": ""
+    },
+    "exchange": "",
+    "exposure": 29151.225,
+    "leverage": 0,
+    "option_premium": -2152.5,
+    "pnl": {
+      "realised": 0,
+      "unrealised": 0
+    },
+    "span": 7788.000000000007,
+    "total": 34786.725000000006,
+    "tradingsymbol": "",
+    "type": "",
+    "var": 0
+  },
+  "initial": {
+    "additional": 0,
+    "bo": 0,
+    "cash": 0,
+    "charges": {
+      "brokerage": 0,
+      "exchange_turnover_charge": 0,
+      "gst": {
+        "cgst": 0,
+        "igst": 0,
+        "sgst": 0,
+        "total": 0
+      },
+      "sebi_turnover_charge": 0,
+      "stamp_duty": 0,
+      "total": 0,
+      "transaction_tax": 0,
+      "transaction_tax_type": ""
+    },
+    "exchange": "",
+    "exposure": 29151.225,
+    "leverage": 0,
+    "option_premium": 521.25,
+    "pnl": {
+      "realised": 0,
+      "unrealised": 0
+    },
+    "span": 66832.5,
+    "total": 96504.975,
+    "tradingsymbol": "",
+    "type": "",
+    "var": 0
+  },
+  "orders": [
+    {
+      "additional": 0,
+      "bo": 0,
+      "cash": 0,
+      "charges": {
+        "brokerage": 20,
+        "exchange_turnover_charge": 1.336875,
+        "gst": {
+          "cgst": 0,
+          "igst": 3.841118774999999,
+          "sgst": 0,
+          "total": 3.841118774999999
+        },
+        "sebi_turnover_charge": 0.00267375,
+        "stamp_duty": 0,
+        "total": 26.851761275,
+        "transaction_tax": 1.67109375,
+        "transaction_tax_type": "stt"
+      },
+      "exchange": "NFO",
+      "exposure": 29151.225,
+      "leverage": 1,
+      "option_premium": 0,
+      "pnl": {
+        "realised": 0,
+        "unrealised": 0
+      },
+      "span": 66832.5,
+      "total": 95983.725,
+      "tradingsymbol": "NIFTY23JUL20600CE",
+      "type": "equity",
+      "var": 0
+    },
+    {
+      "additional": 0,
+      "bo": 0,
+      "cash": 0,
+      "charges": {
+        "brokerage": 20,
+        "exchange_turnover_charge": 0.260625,
+        "gst": {
+          "cgst": 0,
+          "igst": 3.647006324999999,
+          "sgst": 0,
+          "total": 3.647006324999999
+        },
+        "sebi_turnover_charge": 0.00052125,
+        "stamp_duty": 0,
+        "total": 23.908152575,
+        "transaction_tax": 0,
+        "transaction_tax_type": "stt"
+      },
+      "exchange": "NFO",
+      "exposure": 0,
+      "leverage": 1,
+      "option_premium": 521.25,
+      "pnl": {
+        "realised": 0,
+        "unrealised": 0
+      },
+      "span": 0,
+      "total": 521.25,
+      "tradingsymbol": "NIFTY23JUL20700CE",
+      "type": "equity",
+      "var": 0
+    }
+  ]
+}

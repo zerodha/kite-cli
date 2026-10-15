@@ -1,0 +1,7 @@
+{
+  "endpoint": "/instruments.json",
+  "format": "json",
+  "path": "/home/user/export.json",
+  "records": 1,
+  "truncated": false
+}

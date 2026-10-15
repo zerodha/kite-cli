@@ -1,0 +1,3 @@
+UUID                                  NAME      TYPE    CONDITION                                       STATUS    TRIGGERS
+550e8400-e29b-41d4-a716-446655440000  NIFTY 50  simple  LastTradedPrice(INDICES:NIFTY 50) >= 27,000.00  enabled          0
+e888ed4a-6801-406f-bdc2-002db5a8411d  buy gold  ato     LastTradedPrice(NSE:GOLDBEES) <= 71.80          disabled         1

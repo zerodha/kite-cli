@@ -1,0 +1,13 @@
+{
+  "body": null,
+  "dry_run": true,
+  "method": "DELETE",
+  "next": "add --confirm to send the raw DELETE",
+  "path": "/raw",
+  "query": [
+    [
+      "safe",
+      "value"
+    ]
+  ]
+}

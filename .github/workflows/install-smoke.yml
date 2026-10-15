@@ -1,0 +1,82 @@
+name: Install smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_version:
+        description: Expected installed release version
+        required: true
+        type: string
+        default: 0.1.0-alpha.2
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install and check published release
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_TEMP: ${{ runner.temp }}
+        shell: bash
+        run: |
+          python_command=python3
+          if [[ "$RUNNER_OS" == Windows ]]; then python_command=python; fi
+          "$python_command" - <<'PY'
+          import os
+          import pathlib
+          import subprocess
+          import sys
+
+          root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "kite-install-smoke"
+          root.mkdir(parents=True, exist_ok=True)
+          install = root / "bin"
+          install.mkdir()
+          for directory in ("home", "tmp", "appdata", "localappdata"):
+              (root / directory).mkdir()
+          env = {key: os.environ[key] for key in (
+              "PATH", "GH_TOKEN", "SYSTEMROOT", "WINDIR", "COMSPEC",
+              "PATHEXT", "LOCALAPPDATA"
+          ) if key in os.environ}
+          env.update({
+              "HOME": str(root / "home"), "XDG_CONFIG_HOME": str(root / "xdg-config"),
+              "XDG_CACHE_HOME": str(root / "xdg-cache"), "XDG_DATA_HOME": str(root / "xdg-data"),
+              "XDG_STATE_HOME": str(root / "xdg-state"),
+              "USERPROFILE": str(root / "home"), "APPDATA": str(root / "appdata"),
+              "LOCALAPPDATA": str(root / "localappdata"),
+              "CARGO_HOME": str(root / "cargo"), "CARGO_TARGET_DIR": str(root / "target"),
+              "RUSTUP_HOME": str(root / "rustup"), "MISE_DATA_DIR": str(root / "mise-data"),
+              "MISE_CACHE_DIR": str(root / "mise-cache"), "MISE_CONFIG_DIR": str(root / "mise-config"),
+              "MISE_STATE_DIR": str(root / "mise-state"),
+              "TMPDIR": str(root / "tmp"), "TEMP": str(root / "tmp"), "TMP": str(root / "tmp"),
+              "KITE_INSTALL_DIR": str(install), "EXPECTED_VERSION": os.environ["EXPECTED_VERSION"],
+          })
+          if sys.platform == "win32":
+              subprocess.run([
+                  "pwsh", "-NoProfile", "-NonInteractive", "-File", "scripts/install.ps1",
+                  "-Version", env["EXPECTED_VERSION"], "-InstallDir", str(install),
+              ], env=env, check=True)
+              binary = install / "kite.exe"
+          else:
+              subprocess.run(["sh", "scripts/install.sh"], env=env, check=True)
+              binary = install / "kite"
+          env.pop("GH_TOKEN", None)
+          version = subprocess.run([str(binary), "--version"], env=env, check=True,
+                                   text=True, capture_output=True).stdout.strip()
+          expected = f"kite {env['EXPECTED_VERSION']}"
+          if version != expected:
+              raise SystemExit(f"Expected {expected!r}, got {version!r}")
+          subprocess.run([str(binary), "--help"], env=env, check=True,
+                         stdout=subprocess.DEVNULL)
+          print(f"Installed and checked {version}")
+          PY

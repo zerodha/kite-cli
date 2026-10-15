@@ -1,0 +1,19 @@
+{
+  "body": {
+    "form": {
+      "lhs_attribute": "LastTradedPrice",
+      "lhs_exchange": "INDICES",
+      "lhs_tradingsymbol": "NIFTY 50",
+      "name": "NIFTY 50",
+      "operator": ">=",
+      "rhs_constant": "27000",
+      "rhs_type": "constant",
+      "type": "simple"
+    }
+  },
+  "dry_run": true,
+  "method": "POST",
+  "next": "add --confirm to create the alert",
+  "path": "/alerts",
+  "query": []
+}

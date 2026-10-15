@@ -1,0 +1,62 @@
+[[releases]]
+name = "kite"
+dist_folder = "./dist"
+additional_files = ["README.md", "docs/INSTALL.md", "LICENSE"]
+
+[releases.targets]
+
+[releases.checksum]
+algorithm = "sha256"
+
+[[releases.builds]]
+name = "Linux x86_64"
+target = "x86_64-unknown-linux-musl"
+command = "python3 scripts/release.py build x86_64-unknown-linux-musl"
+artifact = "target/x86_64-unknown-linux-musl/release/kite"
+bin_name = "kite"
+archive_name = "kite-{{ meta.version }}-{{ meta.target }}"
+archive_format = "tar_gz"
+
+[[releases.builds]]
+name = "Linux aarch64"
+target = "aarch64-unknown-linux-musl"
+command = "python3 scripts/release.py build aarch64-unknown-linux-musl"
+artifact = "target/aarch64-unknown-linux-musl/release/kite"
+bin_name = "kite"
+archive_name = "kite-{{ meta.version }}-{{ meta.target }}"
+archive_format = "tar_gz"
+
+[[releases.builds]]
+name = "macOS x86_64"
+target = "x86_64-apple-darwin"
+command = "python3 scripts/release.py build x86_64-apple-darwin"
+artifact = "target/x86_64-apple-darwin/release/kite"
+bin_name = "kite"
+archive_name = "kite-{{ meta.version }}-{{ meta.target }}"
+archive_format = "tar_gz"
+
+[[releases.builds]]
+name = "macOS aarch64"
+target = "aarch64-apple-darwin"
+command = "python3 scripts/release.py build aarch64-apple-darwin"
+artifact = "target/aarch64-apple-darwin/release/kite"
+bin_name = "kite"
+archive_name = "kite-{{ meta.version }}-{{ meta.target }}"
+archive_format = "tar_gz"
+
+[[releases.builds]]
+name = "Windows x86_64"
+type = "rust"
+target = "x86_64-pc-windows-msvc"
+artifact = "target/x86_64-pc-windows-msvc/release/kite.exe"
+bin_name = "kite.exe"
+archive_name = "kite-{{ meta.version }}-{{ meta.target }}"
+archive_format = "zip"
+[releases.builds.rust]
+targets = ["x86_64-pc-windows-msvc"]
+tool = "cargo build"
+binary = "kite"
+flags = ["--locked", "--release"]
+
+[changelog]
+template = "scripts/release-notes.tpl"

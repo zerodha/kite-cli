@@ -1,0 +1,12 @@
+DRY RUN  nothing was sent to Kite
+BUY 1 NSE:INFY  LIMIT @ 1500  CNC  DAY
+
+POST /orders/regular
+exchange          NSE
+tradingsymbol     INFY
+transaction_type  BUY
+order_type        LIMIT
+quantity          1
+product           CNC
+price             1500
+validity          DAY

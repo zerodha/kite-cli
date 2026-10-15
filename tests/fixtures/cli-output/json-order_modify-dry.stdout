@@ -1,0 +1,12 @@
+{
+  "body": {
+    "form": {
+      "quantity": "2"
+    }
+  },
+  "dry_run": true,
+  "method": "PUT",
+  "next": "add --confirm to modify the order",
+  "path": "/orders/regular/123",
+  "query": []
+}

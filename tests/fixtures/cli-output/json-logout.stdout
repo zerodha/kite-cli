@@ -1,0 +1,8 @@
+{
+  "cleared_config_fields": [
+    "access_token"
+  ],
+  "logged_out": true,
+  "path": "/home/user/config.json",
+  "revoked": true
+}

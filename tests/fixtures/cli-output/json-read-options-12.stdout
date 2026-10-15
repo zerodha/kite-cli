@@ -1,0 +1,14 @@
+{
+  "body": {
+    "json": [
+      1,
+      true,
+      null
+    ]
+  },
+  "dry_run": true,
+  "method": "PUT",
+  "next": "add --confirm to send the raw write request",
+  "path": "/raw",
+  "query": []
+}

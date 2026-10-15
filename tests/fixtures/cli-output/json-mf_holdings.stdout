@@ -1,0 +1,35 @@
+[
+  {
+    "average_price": 78.43,
+    "folio": "3108290884",
+    "fund": "INVESCO INDIA TAX PLAN - DIRECT PLAN",
+    "last_price": 84.86,
+    "last_price_date": "",
+    "pledged_quantity": 0,
+    "pnl": 0,
+    "quantity": 382.488,
+    "tradingsymbol": "INF205K01NT8"
+  },
+  {
+    "average_price": 1874.101138,
+    "folio": "5102495241",
+    "fund": "Indiabulls Liquid Fund - Direct Plan",
+    "last_price": 2081.4984,
+    "last_price_date": "",
+    "pledged_quantity": 0,
+    "pnl": 0,
+    "quantity": 1.334,
+    "tradingsymbol": "INF666M01451"
+  },
+  {
+    "average_price": 116.7,
+    "folio": "9104386836",
+    "fund": "BOI AXA TAX ADVANTAGE FUND - DIRECT PLAN",
+    "last_price": 101.13,
+    "last_price_date": "",
+    "pledged_quantity": 0,
+    "pnl": 0,
+    "quantity": 257.057,
+    "tradingsymbol": "INF761K01884"
+  }
+]

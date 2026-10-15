@@ -1,0 +1,13 @@
+{
+  "body": {
+    "form": {
+      "status": "enabled",
+      "type": "simple"
+    }
+  },
+  "dry_run": true,
+  "method": "PUT",
+  "next": "add --confirm to change the alert status",
+  "path": "/alerts/550e8400-e29b-41d4-a716-446655440000",
+  "query": []
+}

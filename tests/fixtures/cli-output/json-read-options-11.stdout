@@ -1,0 +1,12 @@
+{
+  "body": {
+    "form": {
+      "safe": "value"
+    }
+  },
+  "dry_run": true,
+  "method": "POST",
+  "next": "add --confirm to send the raw write request",
+  "path": "/raw",
+  "query": []
+}

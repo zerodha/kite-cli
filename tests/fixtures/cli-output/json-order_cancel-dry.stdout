@@ -1,0 +1,8 @@
+{
+  "body": null,
+  "dry_run": true,
+  "method": "DELETE",
+  "next": "add --confirm to cancel the order",
+  "path": "/orders/regular/123",
+  "query": []
+}

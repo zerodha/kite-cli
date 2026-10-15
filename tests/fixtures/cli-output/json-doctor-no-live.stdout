@@ -1,0 +1,35 @@
+{
+  "api": {
+    "checked": false,
+    "reason": "skipped"
+  },
+  "api_root": "http://fixture.invalid",
+  "app_uuid": "00000000-0000-4000-8000-000000000000",
+  "auth": {
+    "access_token": {
+      "present": true,
+      "value": "test…oken"
+    },
+    "api_key": "test-key",
+    "user_id": {
+      "present": true,
+      "value": "********"
+    }
+  },
+  "config": {
+    "exists": true,
+    "path": "/home/user/config.json"
+  },
+  "env_vars": [
+    "KITE_API_ROOT",
+    "KITE_API_KEY",
+    "KITE_TICKER_URL",
+    "KITE_USER_ID",
+    "KITE_ACCESS_TOKEN",
+    "KITE_CONFIG"
+  ],
+  "ok": true,
+  "setup": [],
+  "ticker_url": "ws://fixture.invalid",
+  "version": "0.1.0"
+}

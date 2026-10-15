@@ -1,0 +1,11 @@
+DRY RUN  nothing was sent to Kite
+
+POST /alerts
+lhs_attribute      LastTradedPrice
+lhs_exchange       INDICES
+lhs_tradingsymbol  NIFTY 50
+name               NIFTY 50
+operator           >=
+rhs_constant       27000
+rhs_type           constant
+type               simple

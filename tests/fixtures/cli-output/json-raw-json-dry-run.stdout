@@ -1,0 +1,26 @@
+{
+  "body": {
+    "json": {
+      "a": [
+        1,
+        2
+      ],
+      "b": "1, 2",
+      "c": null,
+      "d": true,
+      "nested": {
+        "access_token": "<redacted>",
+        "items": [
+          {
+            "n": 3
+          }
+        ]
+      }
+    }
+  },
+  "dry_run": true,
+  "method": "POST",
+  "next": "add --confirm to send the raw write request",
+  "path": "/raw",
+  "query": []
+}

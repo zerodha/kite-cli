@@ -1,0 +1,182 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-24.04
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04
+          - target: x86_64-apple-darwin
+            runner: macos-15
+          - target: aarch64-apple-darwin
+            runner: macos-15
+          - target: x86_64-pc-windows-msvc
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Create local preview tag
+        if: github.event_name == 'workflow_dispatch' && runner.os != 'Windows'
+        run: python3 scripts/release.py preview-tag
+      - name: Create local preview tag on Windows
+        if: github.event_name == 'workflow_dispatch' && runner.os == 'Windows'
+        run: python scripts/release.py preview-tag
+      - name: Validate tag and changelog
+        if: github.event_name == 'push' && runner.os != 'Windows'
+        run: python3 scripts/release.py notes "$GITHUB_REF_NAME"
+      - name: Validate tag and changelog on Windows
+        if: github.event_name == 'push' && runner.os == 'Windows'
+        run: python scripts/release.py notes $env:GITHUB_REF_NAME
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
+      - name: Install Rust target
+        if: runner.os != 'Windows'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: rustup target add "$TARGET"
+      - name: Install Linux cross-compilation tools
+        if: runner.os == 'Linux'
+        run: |
+          curl --fail --location --silent --show-error \
+            https://ziglang.org/download/0.15.1/zig-x86_64-linux-0.15.1.tar.xz -o zig.tar.xz
+          echo 'c61c5da6edeea14ca51ecd5e4520c6f4189ef5250383db33d01848293bfafe05  zig.tar.xz' | sha256sum --check
+          tar -xf zig.tar.xz
+          echo "$PWD/zig-x86_64-linux-0.15.1" >> "$GITHUB_PATH"
+          cargo install --locked cargo-zigbuild --version 0.23.4
+      - name: Install pinned rlsr
+        run: |
+          temporary="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then temporary=$(cygpath -u "$temporary"); fi
+          scripts/install-rlsr.sh "$temporary/rlsr-bin"
+        shell: bash
+      - name: Build and package with rlsr
+        env:
+          KITE_API_ROOT: ${{ secrets.KITE_API_ROOT }}
+          KITE_DEFAULT_API_KEY: ${{ secrets.KITE_DEFAULT_API_KEY }}
+          KITE_TICKER_URL: ${{ secrets.KITE_TICKER_URL }}
+          TARGET: ${{ matrix.target }}
+          RUST_LOG: info
+        run: '"$RUNNER_TEMP/rlsr-bin/rlsr" --config rlsr.toml --skip-publish --split --targets "$TARGET"'
+        if: runner.os != 'Windows'
+      - name: Build and package with rlsr on Windows
+        if: runner.os == 'Windows'
+        env:
+          KITE_API_ROOT: ${{ secrets.KITE_API_ROOT }}
+          KITE_DEFAULT_API_KEY: ${{ secrets.KITE_DEFAULT_API_KEY }}
+          KITE_TICKER_URL: ${{ secrets.KITE_TICKER_URL }}
+          TARGET: ${{ matrix.target }}
+          RUST_LOG: info
+        run: '& "$env:RUNNER_TEMP\rlsr-bin\rlsr.exe" --config rlsr.toml --skip-publish --split --targets "$env:TARGET"'
+      - name: Verify Windows archive and compiled settings
+        if: runner.os == 'Windows'
+        env:
+          KITE_API_ROOT: ${{ secrets.KITE_API_ROOT }}
+          KITE_DEFAULT_API_KEY: ${{ secrets.KITE_DEFAULT_API_KEY }}
+          KITE_TICKER_URL: ${{ secrets.KITE_TICKER_URL }}
+        run: python scripts/release.py verify-windows-archive x86_64-pc-windows-msvc
+      - name: Upload private Windows preview
+        if: github.event_name == 'workflow_dispatch' && matrix.target == 'x86_64-pc-windows-msvc'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: kite-windows-x86_64-preview
+          path: |
+            dist/*.zip
+            dist/checksums.txt
+            dist/windows-verification.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: kite-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/rlsr-split-*.yml
+            dist/release-notes.md
+          if-no-files-found: error
+
+  verify-windows-install:
+    needs: build
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: kite-x86_64-pc-windows-msvc
+          path: ${{ runner.temp }}\kite-windows
+      - name: Install the downloaded Windows archive without admin access
+        shell: pwsh
+        run: |
+          $artifact = Join-Path $env:RUNNER_TEMP 'kite-windows'
+          $archive = Get-ChildItem -LiteralPath $artifact -Filter 'kite-*-x86_64-pc-windows-msvc.zip' | Select-Object -First 1
+          if (-not $archive) { throw 'Windows release archive was not downloaded.' }
+          $version = python -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['package']['version'])"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read the package version from Cargo.toml.' }
+          $checksum = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath (Join-Path $artifact 'checksums.txt') -Value "$checksum  $($archive.Name)" -NoNewline
+          $installDir = Join-Path $env:RUNNER_TEMP 'kite-user-install'
+          & .\scripts\install.ps1 -ArchivePath $archive.FullName -ChecksumsPath (Join-Path $artifact 'checksums.txt') -InstallDir $installDir
+          $installed = Join-Path $installDir 'kite.exe'
+          if (-not (Test-Path -LiteralPath $installed)) { throw 'Installer did not create kite.exe.' }
+          $versionOutput = & $installed --version
+          if ($LASTEXITCODE -ne 0 -or $versionOutput -notmatch [regex]::Escape($version)) { throw 'Installed Windows binary failed its version check.' }
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User') -split ';'
+          if (-not ($userPath | Where-Object { [IO.Path]::GetFullPath($_).TrimEnd('\') -ieq $installDir.TrimEnd('\') })) { throw 'Installer did not add its user-writable directory to PATH.' }
+          Write-Output "Verified Windows installation: $versionOutput"
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, verify-windows-install]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: kite-*
+          path: dist
+          merge-multiple: true
+      - name: Install pinned rlsr
+        run: scripts/install-rlsr.sh "$RUNNER_TEMP/rlsr-bin"
+      - name: Prepare release metadata
+        run: |
+          python3 scripts/release.py normalize-manifests
+          python3 scripts/release.py notes "$GITHUB_REF_NAME"
+          python3 scripts/release.py publish-config "$GITHUB_REPOSITORY" "$RUNNER_TEMP/rlsr-release.json"
+      - name: Merge, checksum and upload a draft with rlsr
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUST_LOG: info
+        run: '"$RUNNER_TEMP/rlsr-bin/rlsr" --config "$RUNNER_TEMP/rlsr-release.json" --merge'
+      - name: Publish with reviewed changelog notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_PRERELEASE: ${{ contains(github.ref_name, '-') }}
+        run: |
+          release_latest=true
+          if [[ "$IS_PRERELEASE" == true ]]; then
+            release_latest=false
+          fi
+          gh release edit "$GITHUB_REF_NAME" --notes-file dist/release-notes.md \
+            --prerelease="$IS_PRERELEASE" --latest="$release_latest" --draft=false

@@ -1,0 +1,18 @@
+{
+  "body": {
+    "form": {
+      "exchange": "NSE",
+      "new_product": "CNC",
+      "old_product": "MIS",
+      "position_type": "day",
+      "quantity": "1",
+      "tradingsymbol": "INFY",
+      "transaction_type": "BUY"
+    }
+  },
+  "dry_run": true,
+  "method": "PUT",
+  "next": "add --confirm to convert the position",
+  "path": "/portfolio/positions",
+  "query": []
+}

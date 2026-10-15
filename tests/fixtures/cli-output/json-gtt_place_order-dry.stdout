@@ -1,0 +1,14 @@
+{
+  "body": {
+    "form": {
+      "condition": "{}",
+      "orders": "[]",
+      "type": "single"
+    }
+  },
+  "dry_run": true,
+  "method": "POST",
+  "next": "add --confirm to place the GTT trigger",
+  "path": "/gtt/triggers",
+  "query": []
+}

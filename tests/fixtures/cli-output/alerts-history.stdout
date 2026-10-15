@@ -1,0 +1,2 @@
+CREATED AT           CONDITION                                             TYPE    UUID
+2025-02-17 09:16:46  LastTradedPrice("INDICES:NIFTY NEXT 50") <= 58290.35  simple  550e8400-e29b-41d4-a716-446655440000

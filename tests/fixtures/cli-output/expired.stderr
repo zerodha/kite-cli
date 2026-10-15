@@ -1,0 +1,2 @@
+error: Invalid session (TokenException, HTTP 403)
+hint: run `kite auth login` to sign in again

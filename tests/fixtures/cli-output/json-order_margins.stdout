@@ -1,0 +1,35 @@
+[
+  {
+    "additional": 0,
+    "bo": 0,
+    "cash": 0,
+    "charges": {
+      "brokerage": 0.01,
+      "exchange_turnover_charge": 0.051681,
+      "gst": {
+        "cgst": 0,
+        "igst": 0.01137222,
+        "sgst": 0,
+        "total": 0.01137222
+      },
+      "sebi_turnover_charge": 0.001498,
+      "stamp_duty": 0.22,
+      "total": 1.79255122,
+      "transaction_tax": 1.498,
+      "transaction_tax_type": "stt"
+    },
+    "exchange": "NSE",
+    "exposure": 0,
+    "leverage": 1,
+    "option_premium": 0,
+    "pnl": {
+      "realised": 0,
+      "unrealised": 0
+    },
+    "span": 0,
+    "total": 1498,
+    "tradingsymbol": "INFY",
+    "type": "equity",
+    "var": 1498
+  }
+]

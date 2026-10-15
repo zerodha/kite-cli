@@ -1,0 +1,9 @@
+{
+  "exists": true,
+  "fresh_until_unix_seconds": 1700011800,
+  "modified_unix_seconds": 1700000000,
+  "path": "/home/user/kite/instruments.json",
+  "record_count": 1,
+  "size_bytes": 206,
+  "stale": true
+}

@@ -1,0 +1,19 @@
+✓ Alert submitted
+alert_count        0
+created_at         2025-05-26 12:07:50
+disabled_reason    
+lhs_attribute      LastTradedPrice
+lhs_exchange       INDICES
+lhs_tradingsymbol  NIFTY 50
+name               NIFTY 50
+operator           >=
+rhs_attribute      
+rhs_constant       27000
+rhs_exchange       
+rhs_tradingsymbol  
+rhs_type           constant
+status             enabled
+type               simple
+updated_at         2025-05-26 12:07:50
+user_id            AB1234
+uuid               550e8400-e29b-41d4-a716-446655440000

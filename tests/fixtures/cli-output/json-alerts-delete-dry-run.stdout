@@ -1,0 +1,17 @@
+{
+  "body": null,
+  "dry_run": true,
+  "method": "DELETE",
+  "next": "add --confirm to delete the alerts",
+  "path": "/alerts",
+  "query": [
+    [
+      "uuid",
+      "550e8400-e29b-41d4-a716-446655440000"
+    ],
+    [
+      "uuid",
+      "second-uuid"
+    ]
+  ]
+}

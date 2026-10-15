@@ -1,0 +1,14 @@
+{
+  "content_type": "",
+  "http_status": 200,
+  "response": {
+    "outer\u001b[31m": {
+      "inner31m": "value\u001b[0m"
+    },
+    "rows": [
+      {
+        "key\u001b[32m": 1
+      }
+    ]
+  }
+}

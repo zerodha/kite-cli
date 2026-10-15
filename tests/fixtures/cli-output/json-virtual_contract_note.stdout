@@ -1,0 +1,77 @@
+[
+  {
+    "charges": {
+      "brokerage": 0,
+      "exchange_turnover_charge": 0.01876,
+      "gst": {
+        "cgst": 0,
+        "igst": 0.0033767999999999997,
+        "sgst": 0,
+        "total": 0.0033767999999999997
+      },
+      "sebi_turnover_charge": 0.00056,
+      "stamp_duty": 0,
+      "total": 0.5826968,
+      "transaction_tax": 0.56,
+      "transaction_tax_type": "stt"
+    },
+    "exchange": "NSE",
+    "order_type": "MARKET",
+    "price": 560,
+    "product": "CNC",
+    "quantity": 1,
+    "tradingsymbol": "SBIN",
+    "transaction_type": "BUY",
+    "variety": "regular"
+  },
+  {
+    "charges": {
+      "brokerage": 1.7586,
+      "exchange_turnover_charge": 0.152412,
+      "gst": {
+        "cgst": 0,
+        "igst": 0.34503732,
+        "sgst": 0,
+        "total": 0.34503732
+      },
+      "sebi_turnover_charge": 0.005862,
+      "stamp_duty": 0,
+      "total": 2.84811132,
+      "transaction_tax": 0.5862,
+      "transaction_tax_type": "ctt"
+    },
+    "exchange": "MCX",
+    "order_type": "LIMIT",
+    "price": 5862,
+    "product": "NRML",
+    "quantity": 1,
+    "tradingsymbol": "GOLDPETAL23JULFUT",
+    "transaction_type": "SELL",
+    "variety": "regular"
+  },
+  {
+    "charges": {
+      "brokerage": 20,
+      "exchange_turnover_charge": 0.07575,
+      "gst": {
+        "cgst": 0,
+        "igst": 3.613527,
+        "sgst": 0,
+        "total": 3.613527
+      },
+      "sebi_turnover_charge": 0.00015,
+      "stamp_duty": 0,
+      "total": 23.689427,
+      "transaction_tax": 0,
+      "transaction_tax_type": "stt"
+    },
+    "exchange": "NFO",
+    "order_type": "LIMIT",
+    "price": 1.5,
+    "product": "NRML",
+    "quantity": 100,
+    "tradingsymbol": "NIFTY2371317900PE",
+    "transaction_type": "BUY",
+    "variety": "regular"
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "session expired; run `kite auth login`",
+    "type": "Error"
+  },
+  "ok": false
+}

@@ -1,0 +1,6 @@
+ID      INSTRUMENT  TYPE             TRIGGER  ORDERS                         STATUS     CREATED     EXPIRES
+112127  NSE:INFY    single            702.00  BUY 1 @ 702.50                 active     2019-09-12  2020-09-12
+105099  NSE:RAIN    two-leg  102.00 / 103.70  SELL 1 @ 1.00 / SELL 1 @ 1.00  triggered  2019-09-09  2020-01-01
+
+Failed GTT orders
+105099  leg 2: Your order price is lower than the current lower circuit limit of 70.65. Place an order within the daily range.

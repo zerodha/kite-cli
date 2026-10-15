@@ -1,0 +1,19 @@
+{
+  "body": {
+    "form": {
+      "exchange": "NSE",
+      "order_type": "LIMIT",
+      "price": "1500",
+      "product": "CNC",
+      "quantity": "1",
+      "tradingsymbol": "INFY",
+      "transaction_type": "BUY",
+      "validity": "DAY"
+    }
+  },
+  "dry_run": true,
+  "method": "POST",
+  "next": "add --confirm to place the order",
+  "path": "/orders/regular",
+  "query": []
+}

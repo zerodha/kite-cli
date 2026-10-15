@@ -1,0 +1,20 @@
+{
+  "exchange": null,
+  "matches": [
+    {
+      "exchange": "NSE",
+      "expiry": null,
+      "freeze_quantity": null,
+      "instrument_token": 408065,
+      "instrument_type": "EQ",
+      "lot_size": 1,
+      "max_order_quantity": null,
+      "name": "Infosys",
+      "segment": "NSE",
+      "strike": null,
+      "tick_size": 0.05,
+      "tradingsymbol": "INFY"
+    }
+  ],
+  "symbol": "NSE:INFY"
+}

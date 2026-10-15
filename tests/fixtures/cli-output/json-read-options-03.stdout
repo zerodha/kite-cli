@@ -1,0 +1,81 @@
+{
+  "NSE:INFY": {
+    "average_price": 1412.47,
+    "buy_quantity": 0,
+    "depth": {
+      "buy": [
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        }
+      ],
+      "sell": [
+        {
+          "orders": 13,
+          "price": 1412.95,
+          "quantity": 5191
+        },
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        },
+        {
+          "orders": 0,
+          "price": 0,
+          "quantity": 0
+        }
+      ]
+    },
+    "instrument_token": 408065,
+    "last_price": 1412.95,
+    "last_quantity": 5,
+    "last_trade_time": "2021-06-08 15:45:52",
+    "lower_circuit_limit": 1250.7,
+    "net_change": 0,
+    "ohlc": {
+      "close": 1389.65,
+      "high": 1421.75,
+      "low": 1395.55,
+      "open": 1396
+    },
+    "oi": 0,
+    "oi_day_high": 0,
+    "oi_day_low": 0,
+    "sell_quantity": 5191,
+    "timestamp": "2021-06-08 15:45:56",
+    "upper_circuit_limit": 1528.6,
+    "volume": 7360198
+  }
+}

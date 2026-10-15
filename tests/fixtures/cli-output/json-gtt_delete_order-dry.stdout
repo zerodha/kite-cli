@@ -1,0 +1,8 @@
+{
+  "body": null,
+  "dry_run": true,
+  "method": "DELETE",
+  "next": "add --confirm to delete the GTT trigger",
+  "path": "/gtt/triggers/123",
+  "query": []
+}

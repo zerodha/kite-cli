@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 import subprocess
 import tarfile
@@ -12,14 +11,14 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "scripts/install.sh"
-TAG = "v0.1.0-alpha.1"
+TAG = "v0.1.0"
 
 
 class InstallTests(unittest.TestCase):
     def run_installer(
         self,
         *,
-        source: str = "gh",
+        version: str | None = None,
         bad_checksum: bool = False,
         system: str = "Linux",
         machine: str = "x86_64",
@@ -55,42 +54,19 @@ class InstallTests(unittest.TestCase):
                 digest = "0" * 64
             (fixture_releases / "checksums.txt").write_text(f"{digest}  {archive_name}\n")
 
-            gh = commands / "gh"
-            gh.write_text(
-                "#!/bin/sh\n"
-                "if [ \"$1\" = auth ]; then exit 0; fi\n"
-                "if [ \"$1\" = release ] && [ \"$2\" = list ]; then printf '%s\\n' '" + TAG + "'; exit 0; fi\n"
-                "if [ \"$1\" = release ] && [ \"$2\" = download ]; then\n"
-                "  shift 2; release=$1; shift; dest=; wanted=\n"
-                "  patterns=\n"
-                "  while [ $# -gt 0 ]; do case $1 in --dir) dest=$2; shift 2;; --pattern) patterns=\"$patterns $2\"; shift 2;; *) shift;; esac; done\n"
-                "  for wanted in $patterns; do if [ \"$wanted\" = checksums.txt ]; then cp \"$FIXTURE_RELEASES/checksums.txt\" \"$dest/checksums.txt\"; elif [ -f \"$FIXTURE_RELEASES/$wanted\" ]; then cp \"$FIXTURE_RELEASES/$wanted\" \"$dest/$wanted\"; else exit 8; fi; done\n"
-                "  exit 0\nfi\nexit 1\n"
-            )
-            gh.chmod(0o755)
             curl = commands / "curl"
             curl.write_text(
                 "#!/bin/sh\n"
                 "out=; url=\n"
-                "while [ $# -gt 0 ]; do case $1 in -o) out=$2; shift 2;; -*) shift;; *) url=$1; shift;; esac; done\n"
+                "while [ $# -gt 0 ]; do case $1 in -o) out=$2; shift 2;; -w) shift 2;; -*) shift;; *) url=$1; shift;; esac; done\n"
                 "case $url in\n"
-                "  */releases/latest) exit 22 ;;\n"
-                "  */releases?per_page=100) cat \"$FIXTURE_RELEASES/releases.json\" ;;\n"
+                f"  */releases/latest) printf '%s' \"${{url%/latest}}/tag/{TAG}\" ;;\n"
                 "  */releases/download/*/checksums.txt) cp \"$FIXTURE_RELEASES/checksums.txt\" \"$out\" ;;\n"
-                f"  */releases/download/*/{archive_name}) cp \"$FIXTURE_RELEASES/{archive_name}\" \"$out\" ;;\n"
+                f"  */releases/download/{TAG}/{archive_name}) cp \"$FIXTURE_RELEASES/{archive_name}\" \"$out\" ;;\n"
                 "  *) exit 22 ;;\n"
                 "esac\n"
             )
             curl.chmod(0o755)
-            (fixture_releases / "releases.json").write_text(
-                json.dumps(
-                    [
-                        {"tag_name": "v0.1.0-alpha.1", "draft": False, "prerelease": True},
-                        {"tag_name": "v0.1.0-alpha.0", "draft": False, "prerelease": True},
-                    ],
-                    indent=2,
-                )
-            )
             uname = commands / "uname"
             uname.write_text(
                 "#!/bin/sh\ncase \"$1\" in -s) printf '%s\\n' \"$UNAME_SYSTEM\";; -m) printf '%s\\n' \"$UNAME_MACHINE\";; esac\n"
@@ -111,30 +87,35 @@ class InstallTests(unittest.TestCase):
             }
             if not use_default_destination:
                 env["KITE_INSTALL_DIR"] = str(install_dir)
-            if source == "curl":
-                gh.write_text("#!/bin/sh\nexit 1\n")
-                gh.chmod(0o755)
-                env["PATH"] = f"{commands}:/usr/bin:/bin"
-            else:
-                (commands / "curl").rename(commands / "curl.fixture")
+            if version is not None:
+                env["KITE_VERSION"] = version
             result = subprocess.run(
                 ["sh", str(INSTALLER)], cwd=ROOT, env=env,
                 capture_output=True, text=True, check=False,
             )
             return result, install_dir, temporary
 
-    def test_authenticated_download_uses_release_asset_name_without_v(self) -> None:
+    def test_installs_latest_release(self) -> None:
         result, install_dir, temporary = self.run_installer()
         self.addCleanup(temporary.cleanup)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Installed kite v0.1.0-alpha.1", result.stdout)
+        self.assertIn(f"Installed kite {TAG}", result.stdout)
         self.assertTrue((install_dir / "kite").is_file())
 
-    def test_public_api_falls_back_to_first_published_release(self) -> None:
-        result, install_dir, temporary = self.run_installer(source="curl")
+    def test_installs_pinned_version_with_or_without_v(self) -> None:
+        for version in ("0.1.0", "v0.1.0"):
+            with self.subTest(version=version):
+                result, install_dir, temporary = self.run_installer(version=version)
+                self.addCleanup(temporary.cleanup)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"Installed kite {TAG}", result.stdout)
+
+    def test_missing_pinned_version_fails(self) -> None:
+        result, install_dir, temporary = self.run_installer(version="9.9.9")
         self.addCleanup(temporary.cleanup)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue((install_dir / "kite").is_file())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("could not download kite-9.9.9-", result.stderr)
+        self.assertFalse((install_dir / "kite").exists())
 
     def test_uses_writable_personal_bin_on_path_by_default(self) -> None:
         result, install_dir, temporary = self.run_installer(use_default_destination=True)
@@ -150,7 +131,7 @@ class InstallTests(unittest.TestCase):
         self.assertIn("SHA-256 check failed", result.stderr)
         self.assertFalse((install_dir / "kite").exists())
 
-    def test_macos_arm_uses_shasum(self) -> None:
+    def test_macos_arm_uses_aarch64_target(self) -> None:
         result, install_dir, temporary = self.run_installer(system="Darwin", machine="arm64")
         self.addCleanup(temporary.cleanup)
         self.assertEqual(result.returncode, 0, result.stderr)

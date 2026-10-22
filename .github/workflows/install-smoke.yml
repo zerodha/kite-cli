@@ -26,7 +26,6 @@ jobs:
       - name: Install and check published release
         env:
           EXPECTED_VERSION: ${{ inputs.expected_version }}
-          GH_TOKEN: ${{ github.token }}
           RUNNER_TEMP: ${{ runner.temp }}
         shell: bash
         run: |
@@ -45,7 +44,7 @@ jobs:
           for directory in ("home", "tmp", "appdata", "localappdata"):
               (root / directory).mkdir()
           env = {key: os.environ[key] for key in (
-              "PATH", "GH_TOKEN", "SYSTEMROOT", "WINDIR", "COMSPEC",
+              "PATH", "SYSTEMROOT", "WINDIR", "COMSPEC",
               "PATHEXT", "LOCALAPPDATA"
           ) if key in os.environ}
           env.update({
@@ -60,6 +59,7 @@ jobs:
               "MISE_STATE_DIR": str(root / "mise-state"),
               "TMPDIR": str(root / "tmp"), "TEMP": str(root / "tmp"), "TMP": str(root / "tmp"),
               "KITE_INSTALL_DIR": str(install), "EXPECTED_VERSION": os.environ["EXPECTED_VERSION"],
+              "KITE_VERSION": os.environ["EXPECTED_VERSION"],
           })
           if sys.platform == "win32":
               subprocess.run([
@@ -70,7 +70,6 @@ jobs:
           else:
               subprocess.run(["sh", "scripts/install.sh"], env=env, check=True)
               binary = install / "kite"
-          env.pop("GH_TOKEN", None)
           version = subprocess.run([str(binary), "--version"], env=env, check=True,
                                    text=True, capture_output=True).stdout.strip()
           expected = f"kite {env['EXPECTED_VERSION']}"

@@ -1,6 +1,6 @@
 # Installation
 
-Install the latest stable release of `kite` (or the newest prerelease if no stable release is published yet) on **Linux** and **macOS**:
+Install the latest release of `kite` on **Linux** and **macOS**:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/zerodha/kite-cli/main/scripts/install.sh | sh
@@ -36,6 +36,12 @@ The Windows installer verifies the archive checksum, installs to a user-writable
    - `~/.local/bin` (fallback; prints instructions to add it to your shell's `PATH`)
 
 For safety, the installer never installs into the current working directory and refuses to overwrite an existing `kite` symlink.
+
+To install a specific version, set `KITE_VERSION` (shell) or pass `-Version` (PowerShell):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zerodha/kite-cli/main/scripts/install.sh | KITE_VERSION=0.1.0 sh
+```
 
 ## Verify your installation
 

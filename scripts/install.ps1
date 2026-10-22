@@ -12,57 +12,6 @@ $Target = 'x86_64-pc-windows-msvc'
 $TemporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ("kite-install-" + [guid]::NewGuid())
 $OwnedTemporaryDirectory = $false
 
-function Get-ReleaseTag([string]$RequestedVersion, [object[]]$Releases) {
-    if ($RequestedVersion) {
-        $requestedTag = if ($RequestedVersion.StartsWith('v')) { $RequestedVersion } else { "v$RequestedVersion" }
-        $release = $Releases | Where-Object { $_.tagName -eq $requestedTag -or $_.tag_name -eq $requestedTag } | Select-Object -First 1
-        if (-not $release) { throw "Release $requestedTag was not found." }
-        return $requestedTag
-    }
-
-    $visibleReleases = @($Releases | Where-Object { -not $_.isDraft -and -not $_.draft })
-    $release = $visibleReleases | Where-Object { -not $_.isPrerelease -and -not $_.prerelease } | Select-Object -First 1
-    if (-not $release) {
-        $release = $visibleReleases | Where-Object { $_.isPrerelease -or $_.prerelease } | Select-Object -First 1
-    }
-    if (-not $release) { throw 'No published stable release or prerelease was found.' }
-    if ($release.tagName) { return [string]$release.tagName }
-    return [string]$release.tag_name
-}
-
-function Download-ReleaseFiles([string]$Tag, [string]$ArchiveName, [string]$Destination) {
-    $gh = Get-Command gh -ErrorAction SilentlyContinue
-    if ($gh) {
-        & $gh.Source auth status *> $null
-        if ($LASTEXITCODE -eq 0) {
-            & $gh.Source release download $Tag --repo $Repository --pattern $ArchiveName --pattern checksums.txt --dir $Destination *> $null
-            if ($LASTEXITCODE -ne 0) {
-                throw "Could not download the Windows archive for $Tag. This release may not include Windows yet."
-            }
-            return
-        }
-    }
-
-    $headers = @{ 'User-Agent' = 'kite-cli-installer' }
-    $token = if ($env:GH_TOKEN) { $env:GH_TOKEN } else { $env:GITHUB_TOKEN }
-    if ($token) { $headers['Authorization'] = "Bearer $token" }
-    try {
-        $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases?per_page=100" -Headers $headers
-    }
-    catch {
-        throw 'Could not read GitHub releases. For a private repository, install GitHub CLI and run gh auth login first.'
-    }
-    $release = $releases | Where-Object { $_.tag_name -eq $Tag -and -not $_.draft } | Select-Object -First 1
-    if (-not $release) { throw "Published release $Tag was not found." }
-    foreach ($name in @($ArchiveName, 'checksums.txt')) {
-        $asset = $release.assets | Where-Object { $_.name -eq $name } | Select-Object -First 1
-        if (-not $asset) {
-            throw "Release $Tag does not include $name."
-        }
-        Invoke-WebRequest -Uri $asset.browser_download_url -Headers $headers -OutFile (Join-Path $Destination $name)
-    }
-}
-
 try {
     if (-not $InstallDir) {
         if (-not $env:LOCALAPPDATA) { throw 'LOCALAPPDATA is unavailable. Set -InstallDir to a user-writable directory.' }
@@ -82,31 +31,28 @@ try {
     else {
         New-Item -ItemType Directory -Path $TemporaryDirectory | Out-Null
         $OwnedTemporaryDirectory = $true
-        $gh = Get-Command gh -ErrorAction SilentlyContinue
-        if ($gh) {
-            & $gh.Source auth status *> $null
-            if ($LASTEXITCODE -eq 0) {
-                $releaseJson = & $gh.Source release list --repo $Repository --limit 100 --json tagName,isPrerelease,isDraft
-                if ($LASTEXITCODE -ne 0) { throw 'Could not list GitHub releases.' }
-                $releases = @($releaseJson | ConvertFrom-Json)
-            }
+        if ($Version) {
+            $tag = 'v' + $Version.TrimStart('v')
         }
-        if (-not $releases) {
-            $headers = @{ 'User-Agent' = 'kite-cli-installer' }
-            $token = if ($env:GH_TOKEN) { $env:GH_TOKEN } else { $env:GITHUB_TOKEN }
-            if ($token) { $headers['Authorization'] = "Bearer $token" }
+        else {
             try {
-                $releases = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases?per_page=100" -Headers $headers)
+                $tag = (Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/latest" -Headers @{ 'User-Agent' = 'kite-cli-installer' }).tag_name
             }
             catch {
-                throw 'Could not read GitHub releases. For a private repository, install GitHub CLI and run gh auth login first.'
+                throw 'Could not find the latest release.'
             }
         }
-        $tag = Get-ReleaseTag $Version $releases
         if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$') { throw "Invalid release tag: $tag" }
         $version = $tag.Substring(1)
         $archiveName = "kite-$version-$Target.zip"
-        Download-ReleaseFiles $tag $archiveName $TemporaryDirectory
+        foreach ($name in @($archiveName, 'checksums.txt')) {
+            try {
+                Invoke-WebRequest -Uri "https://github.com/$Repository/releases/download/$tag/$name" -OutFile (Join-Path $TemporaryDirectory $name) -UseBasicParsing
+            }
+            catch {
+                throw "Could not download $name for $tag."
+            }
+        }
         $ArchivePath = Join-Path $TemporaryDirectory $archiveName
         $ChecksumsPath = Join-Path $TemporaryDirectory 'checksums.txt'
     }

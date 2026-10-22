@@ -1,8 +1,7 @@
 #!/bin/sh
 set -eu
 
-REPOSITORY=zerodha/kite-cli
-API="https://api.github.com/repos/$REPOSITORY"
+RELEASES=https://github.com/zerodha/kite-cli/releases
 
 fail() {
     printf 'kite install: %s\n' "$*" >&2
@@ -10,7 +9,7 @@ fail() {
 }
 
 case "$(uname -s)" in
-    Linux) os=linux ;;
+    Linux) os=unknown-linux-musl ;;
     Darwin) os=apple-darwin ;;
     *) fail "unsupported operating system: $(uname -s). Use scripts/install.ps1 on Windows." ;;
 esac
@@ -19,52 +18,36 @@ case "$(uname -m)" in
     aarch64|arm64) arch=aarch64 ;;
     *) fail "unsupported CPU architecture: $(uname -m). Releases support x86_64 and aarch64." ;;
 esac
-if [ "$os" = linux ]; then
-    target="$arch-unknown-linux-musl"
-else
-    target="$arch-apple-darwin"
-fi
+target=$arch-$os
 
 command -v curl >/dev/null 2>&1 || fail "curl is required."
 command -v tar >/dev/null 2>&1 || fail "tar is required."
-if [ "$os" = linux ]; then
-    command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required."
+if command -v sha256sum >/dev/null 2>&1; then
     hash_file() { sha256sum "$1" | awk '{print $1}'; }
-else
-    command -v shasum >/dev/null 2>&1 || fail "shasum is required."
+elif command -v shasum >/dev/null 2>&1; then
     hash_file() { shasum -a 256 "$1" | awk '{print $1}'; }
+else
+    fail "sha256sum or shasum is required."
 fi
+
+# GitHub redirects /releases/latest to /releases/tag/<tag>, so no API call is needed.
+if [ -n "${KITE_VERSION:-}" ]; then
+    tag=v${KITE_VERSION#v}
+else
+    latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$RELEASES/latest") || fail "could not find the latest release."
+    tag=${latest##*/}
+fi
+case "$tag" in v[0-9]*) ;; *) fail "invalid release tag: $tag." ;; esac
+case "$tag" in *[!A-Za-z0-9.+_-]*) fail "invalid release tag: $tag." ;; esac
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/kite-install.XXXXXX") || fail "could not create a temporary directory."
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    releases=$(gh release list --repo "$REPOSITORY" --limit 100 --json tagName,isPrerelease,isDraft --jq '[.[] | select(.isDraft == false)] | (map(select(.isPrerelease == false)) | .[0].tagName) // (map(select(.isPrerelease)) | .[0].tagName) // empty')
-    [ -n "$releases" ] || fail "no published stable release or prerelease was found."
-    tag=$releases
-    case "$tag" in *[!A-Za-z0-9.+_-]*) fail "invalid release tag: $tag." ;; esac
-    case "$tag" in v[0-9]*) ;; *) fail "invalid release tag: $tag." ;; esac
-    gh release download "$tag" --repo "$REPOSITORY" --pattern "kite-${tag#v}-$target.tar.gz" --pattern checksums.txt --dir "$tmp" || fail "could not download release $tag for $target."
-else
-    tag=$(curl -fsSL "$API/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 || true)
-    if [ -z "$tag" ]; then
-        releases_json=$(curl -fsSL "$API/releases?per_page=100") || fail "could not read releases from GitHub. For a private release, install GitHub CLI and run gh auth login first."
-        tag=$(printf '%s\n' "$releases_json" | sed -n 's/^[[:space:]]*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
-    fi
-    [ -n "$tag" ] || fail "no published stable release or prerelease was found."
-    case "$tag" in *[!A-Za-z0-9.+_-]*) fail "invalid release tag: $tag." ;; esac
-    case "$tag" in v[0-9]*) ;; *) fail "invalid release tag: $tag." ;; esac
-    archive="kite-${tag#v}-$target.tar.gz"
-    curl -fsSL "https://github.com/$REPOSITORY/releases/download/$tag/$archive" -o "$tmp/$archive" || fail "could not download $archive."
-    curl -fsSL "https://github.com/$REPOSITORY/releases/download/$tag/checksums.txt" -o "$tmp/checksums.txt" || fail "could not download checksums.txt."
-fi
-
 archive="kite-${tag#v}-$target.tar.gz"
-[ -f "$tmp/$archive" ] || fail "release archive is missing: $archive."
-[ -f "$tmp/checksums.txt" ] || fail "release checksums.txt is missing."
+curl -fsSL "$RELEASES/download/$tag/$archive" -o "$tmp/$archive" || fail "could not download $archive."
+curl -fsSL "$RELEASES/download/$tag/checksums.txt" -o "$tmp/checksums.txt" || fail "could not download checksums.txt."
 expected=$(awk -v name="$archive" '$2 == name || $2 == "*" name {print $1; found=1} END {if (!found) exit 1}' "$tmp/checksums.txt") || fail "checksums.txt has no entry for $archive."
-actual=$(hash_file "$tmp/$archive")
-[ "$expected" = "$actual" ] || fail "SHA-256 check failed for $archive."
+[ "$expected" = "$(hash_file "$tmp/$archive")" ] || fail "SHA-256 check failed for $archive."
 
 if [ -n "${KITE_INSTALL_DIR:-}" ]; then
     install_dir=$KITE_INSTALL_DIR

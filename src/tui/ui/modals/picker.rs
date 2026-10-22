@@ -44,7 +44,7 @@ pub(in crate::tui::ui) fn workspace_picker_footer() -> &'static forms::FormFoote
 
 fn picker_row(preset: Preset, content: u16) -> Line<'static> {
     let panes: Vec<&str> = preset.panes().iter().copied().map(PaneId::title).collect();
-    let lead = format!("{}  {:<12}", preset.key(), preset.title());
+    let lead = format!("{}  {:<13}", preset.key(), preset.title());
     let room = usize::from(content)
         .saturating_sub(SELECT_MARKER.len())
         .saturating_sub(format::display_width(&lead));

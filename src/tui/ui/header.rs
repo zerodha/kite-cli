@@ -17,7 +17,7 @@ const TAB_GAP: &str = "  ";
 const MORE_LEFT: &str = "‹ ";
 const MORE_RIGHT: &str = " ›";
 
-const STATUS_FLOOR: u16 = 8;
+const STATUS_FLOOR: u16 = 14 + 2;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Squeeze {
@@ -98,10 +98,7 @@ fn strip_pieces(active: Preset, width: u16) -> Vec<Piece> {
     }
 
     let window = |lo: usize, hi: usize| {
-        let mut pieces = vec![Piece::Edge];
-        if lo > 0 {
-            pieces.push(Piece::MoreLeft);
-        }
+        let mut pieces = vec![if lo > 0 { Piece::MoreLeft } else { Piece::Edge }];
         tab_pieces(lo..hi, active, &SQUEEZES, &mut pieces);
         if hi < count {
             pieces.push(Piece::MoreRight);
@@ -540,7 +537,7 @@ mod tests {
     fn every_tab_is_whole_and_the_active_one_is_marked_at_every_width() {
         let _guard = settings::theme_guard(Theme::DEFAULT);
         let mut app = test_app();
-        for width in [160u16, 120, 80, 40] {
+        for width in [160u16, 120, 80, 70, 40] {
             for active in Preset::ALL {
                 app.set_workspace(active);
                 let (buffer, tabs) = drawn_tabs(&app, width);
@@ -606,7 +603,8 @@ mod tests {
         app.set_workspace(Preset::Trading);
         app.ws_state = WsState::Connected;
         app.margin_available = Some(50_000.0);
-        let keyed = " kite  1 Overview  2 Trading  3 Portfolio  4 Derivatives  5 Orders  6 Invest";
+        let keyed =
+            " kite  1 Overview  2 Trading  3 Portfolio  4 Option Chain  5 Orders  6 IPO & Bids";
         let row160 = header_canvas(&app, 160);
         assert!(row160.starts_with(keyed), "{row160:?}");
         assert!(row160.ends_with("● live | open | 10:30:00 | ₹50,000 available | up 1m 20s "));
@@ -618,7 +616,7 @@ mod tests {
         );
         assert_eq!(
             header_canvas(&app, 80),
-            " kite  Overview  Trading  Portfolio  Derivatives  Orders  Invest  ● live | open "
+            " Overview  Trading  Portfolio  Option Chain  Orders  IPO & Bids   ● live | open "
         );
     }
 
@@ -627,13 +625,43 @@ mod tests {
         let _guard = settings::theme_guard(Theme::DEFAULT);
         let mut app = test_app();
         app.set_workspace(Preset::Overview);
-        let row = header_canvas(&app, 70);
-        assert!(
-            row.starts_with(" Overview  Trading  Portfolio  Derivatives  Orders  Invest"),
-            "{row:?}"
-        );
-        assert!(!row.contains("kite"), "{row:?}");
-        assert!(!row.contains('›'), "every tab still fits: {row:?}");
+        for (ws, label) in [
+            (WsState::Connected, "● live"),
+            (WsState::Connecting, "◌ connecting"),
+            (WsState::Reconnecting, "◌ reconnecting"),
+            (WsState::Closed, "○ offline"),
+        ] {
+            app.ws_state = ws;
+            let row = header_canvas(&app, 80);
+            assert!(
+                row.starts_with(" Overview  Trading  Portfolio  Option Chain  Orders  IPO & Bids"),
+                "{row:?}"
+            );
+            assert!(!row.contains("kite"), "{row:?}");
+            assert!(!row.contains('›'), "every tab still fits: {row:?}");
+            assert!(row.contains(label), "the connection stays visible: {row:?}");
+        }
+    }
+
+    #[test]
+    fn every_connection_label_is_drawn_at_every_width_from_70_to_100() {
+        let _guard = settings::theme_guard(Theme::DEFAULT);
+        let mut app = test_app();
+        for active in Preset::ALL {
+            app.set_workspace(active);
+            for (ws, label) in [
+                (WsState::Connected, "● live"),
+                (WsState::Connecting, "◌ connecting"),
+                (WsState::Reconnecting, "◌ reconnecting"),
+                (WsState::Closed, "○ offline"),
+            ] {
+                app.ws_state = ws;
+                for width in 70..=100 {
+                    let header = row(&drawn_tabs(&app, width).0, 0);
+                    assert!(header.contains(label), "{active:?} at {width}: {header:?}");
+                }
+            }
+        }
     }
 
     #[test]
@@ -646,7 +674,10 @@ mod tests {
                 let buffer = root_buffer(&app, width, height);
                 let header = row(&buffer, 0);
                 assert!(header.contains("Overview"), "{width}x{height}: {header:?}");
-                assert!(header.contains("Invest"), "{width}x{height}: {header:?}");
+                assert!(
+                    header.contains("IPO & Bids"),
+                    "{width}x{height}: {header:?}"
+                );
                 let body = row(&buffer, 1);
                 assert!(
                     body.starts_with('┌'),

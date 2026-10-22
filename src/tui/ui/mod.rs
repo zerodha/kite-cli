@@ -200,7 +200,7 @@ fn draw_pane(
         ),
         PaneId::OrdersGtt => views::draw_gtt_leaf(frame, area, app, pane, focused),
         PaneId::OrdersAlerts => views::draw_alerts_leaf(frame, area, app, pane, focused),
-        PaneId::InvestMf => views::draw_mf_leaf(frame, area, app, pane, focused),
+        PaneId::PortfolioMf => views::draw_mf_leaf(frame, area, app, pane, focused),
         PaneId::InvestBids => views::draw_bids_leaf(frame, area, app, pane, focused),
     }
 }

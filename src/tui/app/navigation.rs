@@ -246,7 +246,7 @@ pub(in crate::tui::app) mod tests {
 
         app.on_key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
         assert_eq!(app.workspace(), Preset::Invest);
-        assert_eq!(app.focused_pane(), PaneId::InvestMf);
+        assert_eq!(app.focused_pane(), PaneId::InvestBids);
 
         for want in Preset::ALL {
             app.on_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
@@ -514,9 +514,9 @@ pub(in crate::tui::app) mod tests {
             "Overview",
             "Trading",
             "Portfolio",
-            "Derivatives",
+            "Option Chain",
             "Orders",
-            "Invest",
+            "IPO & Bids",
         ] {
             assert!(listed.contains(&name.to_string()), "{name} is not listed");
         }
@@ -828,9 +828,9 @@ pub(in crate::tui::app) mod tests {
     }
 
     #[test]
-    fn the_orders_and_invest_workspaces_tile_and_collapse_like_the_others() {
+    fn the_portfolio_orders_and_invest_workspaces_tile_and_collapse_like_the_others() {
         let mut app = stocked();
-        for preset in [Preset::Orders, Preset::Invest] {
+        for preset in [Preset::Portfolio, Preset::Orders, Preset::Invest] {
             app.set_workspace(preset);
             for (width, height) in [(120u16, 35u16), (160, 45)] {
                 let text = screen(&app, width, height);
@@ -856,24 +856,24 @@ pub(in crate::tui::app) mod tests {
     }
 
     #[test]
-    fn only_the_focused_pane_of_invest_and_orders_carries_the_marker() {
+    fn only_the_focused_pane_of_portfolio_and_orders_carries_the_marker() {
         let mut app = stocked();
         app.mf_holdings = Some(vec![{
             let mut row = crate::tui::data::test_models::mf();
             row.tradingsymbol = "FUND A".into();
             row
         }]);
-        app.set_workspace(Preset::Invest);
+        app.set_workspace(Preset::Portfolio);
         let markers = |text: &str| text.matches("┌ > ").count();
 
         let text = screen(&app, 160, 45);
         assert_eq!(markers(&text), 1, "{text}");
-        assert!(text.contains("┌ > MF"), "{text}");
+        assert!(!text.contains("┌ > MF"), "{text}");
 
-        app.focus_pane_for_test(PaneId::InvestBids);
+        app.focus_pane_for_test(PaneId::PortfolioMf);
         let text = screen(&app, 160, 45);
         assert_eq!(markers(&text), 1, "{text}");
-        assert!(!text.contains("┌ > MF"), "{text}");
+        assert!(text.contains("┌ > MF"), "{text}");
 
         app.gtts = Some(vec![{
             let mut row = crate::tui::data::test_models::gtt();

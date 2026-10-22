@@ -1,6 +1,6 @@
 use crate::{Call, Exchange, KiteConnect, Product, RawResponse, Request, Result, TransactionType};
 use chrono::{NaiveDate, NaiveDateTime};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 
 /// Holding returned by GET /portfolio/holdings.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -19,21 +19,28 @@ pub struct Holding {
     /// Price reported for the holding.
     pub price: f64,
     /// Quantity of the holding in use.
+    #[serde(deserialize_with = "whole_number")]
     pub used_quantity: i64,
     /// Quantity held.
+    #[serde(deserialize_with = "whole_number")]
     pub quantity: i64,
     /// Quantity bought and pending settlement (T1).
+    #[serde(deserialize_with = "whole_number")]
     pub t1_quantity: i64,
     /// Realised (settled) quantity.
+    #[serde(deserialize_with = "whole_number")]
     pub realised_quantity: i64,
     /// Quantity authorised for sale.
+    #[serde(deserialize_with = "whole_number")]
     pub authorised_quantity: i64,
     /// Date and time of the sale authorisation, if any.
     #[serde(default, with = "crate::time::optional_datetime")]
     pub authorised_date: Option<NaiveDateTime>,
     /// Quantity at the start of the day.
+    #[serde(deserialize_with = "whole_number")]
     pub opening_quantity: i64,
     /// Quantity pledged as collateral.
+    #[serde(deserialize_with = "whole_number")]
     pub collateral_quantity: i64,
     /// Type of collateral.
     pub collateral_type: String,
@@ -60,8 +67,10 @@ pub struct Holding {
 #[non_exhaustive]
 pub struct MtfHolding {
     /// Quantity held under MTF.
+    #[serde(deserialize_with = "whole_number")]
     pub quantity: i64,
     /// MTF quantity in use.
+    #[serde(deserialize_with = "whole_number")]
     pub used_quantity: i64,
     /// Average price of the MTF holding.
     pub average_price: f64,
@@ -496,6 +505,26 @@ fn decode_holdings_auth(
     Ok(auth)
 }
 
+/// Decodes an integer that some backends send as a whole float, such as `-0.0`.
+fn whole_number<'de, D: Deserializer<'de>>(deserializer: D) -> std::result::Result<i64, D::Error> {
+    let number = serde_json::Number::deserialize(deserializer)?;
+    if let Some(value) = number.as_i64() {
+        return Ok(value);
+    }
+    match number.as_f64() {
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "the value is whole and within the exact f64 integer range"
+        )]
+        Some(value) if value.fract() == 0.0 && value.abs() <= 9_007_199_254_740_992.0 => {
+            Ok(value as i64)
+        }
+        _ => Err(D::Error::custom(format!(
+            "expected a whole number, got {number}"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -594,6 +623,21 @@ mod tests {
             assert!(holding.mtf.is_none());
             assert_eq!(holding.product, "FUTURE_PRODUCT");
         }
+    }
+
+    #[test]
+    fn holding_quantities_accept_whole_floats_and_reject_fractions() {
+        let mut holding = data(HOLDINGS)[0].clone();
+        holding["used_quantity"] = json!(-0.0);
+        holding["quantity"] = json!(2.0);
+        holding["mtf"]["used_quantity"] = json!(-0.0);
+        let holding: Holding = serde_json::from_value(holding).unwrap();
+        assert_eq!(holding.used_quantity, 0);
+        assert_eq!(holding.quantity, 2);
+        assert_eq!(holding.mtf.unwrap().used_quantity, 0);
+        let mut holding = data(HOLDINGS)[0].clone();
+        holding["quantity"] = json!(1.5);
+        assert!(serde_json::from_value::<Holding>(holding).is_err());
     }
 
     #[test]

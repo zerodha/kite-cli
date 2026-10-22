@@ -210,7 +210,13 @@ fn composite_tree(preset: Preset) -> Node {
             Split::PortfolioRoot,
             1,
             2,
-            Node::Leaf(PaneId::PortfolioPositions),
+            seam(
+                Split::PortfolioLeft,
+                3,
+                5,
+                Node::Leaf(PaneId::PortfolioPositions),
+                Node::Leaf(PaneId::PortfolioMf),
+            ),
             seam(
                 Split::PortfolioRight,
                 3,
@@ -239,14 +245,7 @@ fn composite_tree(preset: Preset) -> Node {
                 Node::Leaf(PaneId::OrdersAlerts),
             ),
         ),
-        Preset::Invest => seam(
-            Split::InvestRoot,
-            1,
-            2,
-            Node::Leaf(PaneId::InvestMf),
-            Node::Leaf(PaneId::InvestBids),
-        ),
-        Preset::Overview => Node::Leaf(preset.default_focus()),
+        Preset::Invest | Preset::Overview => Node::Leaf(preset.default_focus()),
     }
 }
 
@@ -772,7 +771,8 @@ mod tests {
             35,
             Preset::Portfolio,
             &[
-                (PaneId::PortfolioPositions, Rect::new(0, 1, 60, 33)),
+                (PaneId::PortfolioPositions, Rect::new(0, 1, 60, 19)),
+                (PaneId::PortfolioMf, Rect::new(0, 20, 60, 14)),
                 (PaneId::PortfolioHoldings, Rect::new(60, 1, 60, 19)),
                 (PaneId::PortfolioFunds, Rect::new(60, 20, 60, 14)),
             ],
@@ -782,7 +782,8 @@ mod tests {
             45,
             Preset::Portfolio,
             &[
-                (PaneId::PortfolioPositions, Rect::new(0, 1, 80, 43)),
+                (PaneId::PortfolioPositions, Rect::new(0, 1, 80, 25)),
+                (PaneId::PortfolioMf, Rect::new(0, 26, 80, 18)),
                 (PaneId::PortfolioHoldings, Rect::new(80, 1, 80, 25)),
                 (PaneId::PortfolioFunds, Rect::new(80, 26, 80, 18)),
             ],
@@ -847,25 +848,19 @@ mod tests {
             120,
             35,
             Preset::Invest,
-            &[
-                (PaneId::InvestMf, Rect::new(0, 1, 60, 33)),
-                (PaneId::InvestBids, Rect::new(60, 1, 60, 33)),
-            ],
+            &[(PaneId::InvestBids, Rect::new(0, 1, 120, 33))],
         ),
         (
             160,
             45,
             Preset::Invest,
-            &[
-                (PaneId::InvestMf, Rect::new(0, 1, 80, 43)),
-                (PaneId::InvestBids, Rect::new(80, 1, 80, 43)),
-            ],
+            &[(PaneId::InvestBids, Rect::new(0, 1, 160, 43))],
         ),
         (
             80,
             24,
             Preset::Invest,
-            &[(PaneId::InvestMf, Rect::new(0, 1, 80, 22))],
+            &[(PaneId::InvestBids, Rect::new(0, 1, 80, 22))],
         ),
     ];
 
@@ -930,7 +925,7 @@ mod tests {
             }
             assert_eq!(Preset::Trading.panes().len(), 4);
         }
-        let stale = resolve_composite_at(area, Preset::Trading, PaneId::InvestMf);
+        let stale = resolve_composite_at(area, Preset::Trading, PaneId::PortfolioMf);
         assert_eq!(stale.rect(PaneId::TradingWatch), Some(area));
     }
 

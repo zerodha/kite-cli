@@ -16,11 +16,11 @@ pub enum Split {
     TradingRight,
     TradingBottom,
     PortfolioRoot,
+    PortfolioLeft,
     PortfolioRight,
     DerivativesRoot,
     OrdersRoot,
     OrdersRight,
-    InvestRoot,
 }
 
 impl Split {
@@ -33,11 +33,11 @@ impl Split {
         Split::TradingRight,
         Split::TradingBottom,
         Split::PortfolioRoot,
+        Split::PortfolioLeft,
         Split::PortfolioRight,
         Split::DerivativesRoot,
         Split::OrdersRoot,
         Split::OrdersRight,
-        Split::InvestRoot,
     ];
 
     pub fn config_token(self) -> &'static str {
@@ -50,11 +50,11 @@ impl Split {
             Split::TradingRight => "trading_right",
             Split::TradingBottom => "trading_bottom",
             Split::PortfolioRoot => "portfolio_root",
+            Split::PortfolioLeft => "portfolio_left",
             Split::PortfolioRight => "portfolio_right",
             Split::DerivativesRoot => "derivatives_root",
             Split::OrdersRoot => "orders_root",
             Split::OrdersRight => "orders_right",
-            Split::InvestRoot => "invest_root",
         }
     }
 
@@ -66,11 +66,11 @@ impl Split {
             | Split::TradingBottom
             | Split::PortfolioRoot
             | Split::DerivativesRoot
-            | Split::OrdersRoot
-            | Split::InvestRoot => Axis::Horizontal,
+            | Split::OrdersRoot => Axis::Horizontal,
             Split::ChartBottom
             | Split::OverviewBooks
             | Split::TradingRight
+            | Split::PortfolioLeft
             | Split::PortfolioRight
             | Split::OrdersRight => Axis::Vertical,
         }
@@ -85,11 +85,11 @@ impl Split {
             Split::TradingRoot => (WATCH_MIN_W, CHART_MIN_W),
             Split::TradingRight => (CHART_MIN_H, CHART_MIN_H),
             Split::TradingBottom => (DEPTH_MIN_W, ORDERS_MIN_W),
-            Split::PortfolioRoot | Split::InvestRoot => (BOOK_MIN_W, BOOK_MIN_W),
+            Split::PortfolioRoot => (BOOK_MIN_W, BOOK_MIN_W),
             Split::PortfolioRight => (HOLDINGS_MIN_H, FUNDS_MIN_H),
             Split::DerivativesRoot => (CHAIN_MIN_W, CHART_MIN_W),
             Split::OrdersRoot => (ORDERS_MIN_W, BOOK_MIN_W),
-            Split::OrdersRight => (BOOK_MIN_H, BOOK_MIN_H),
+            Split::PortfolioLeft | Split::OrdersRight => (BOOK_MIN_H, BOOK_MIN_H),
         }
     }
 

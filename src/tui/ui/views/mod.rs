@@ -780,7 +780,7 @@ mod test_support {
     }
 
     pub(super) fn draw_mf(frame: &mut Frame, area: Rect, app: &App) {
-        draw_mf_leaf(frame, area, app, PaneId::InvestMf, true);
+        draw_mf_leaf(frame, area, app, PaneId::PortfolioMf, true);
     }
 
     pub(super) fn draw_alerts(frame: &mut Frame, area: Rect, app: &App) {

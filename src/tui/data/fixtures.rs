@@ -181,7 +181,7 @@ async fn mf_fixture_reaches_the_mf_pane_without_day_nav_fields() {
     crate::tui::app::App::assert_fixture_renders(
         connect_client(&server),
         DataEvent::MfHoldings(Ok(holdings)),
-        crate::tui::workspace::Preset::Invest,
+        crate::tui::workspace::Preset::Portfolio,
         "INF205K01NT8",
     );
     mock.assert_calls_async(1).await;

@@ -39,16 +39,23 @@ For safety, the installer never installs into the current working directory and 
 
 ## Verify your installation
 
-After installing, sign in to your Kite account and run the built-in diagnostic check:
+After installing, launch the full-screen terminal UI directly:
+
+```sh
+kite
+```
+
+If you aren't signed in yet, `kite` opens an interactive sign-in screen inside the UI.
+
+To sign in from the shell for non-interactive CLI commands and verify your setup:
 
 ```sh
 kite auth login
 kite doctor
 ```
 
-- `kite auth login` prompts for your Kite user ID, password, and 2FA code in an interactive terminal.
+- `kite auth login` prompts for your Kite user ID, password, and 2FA code in the terminal (the TUI and CLI share the same session).
 - `kite doctor` verifies your configuration and active session.
-- Run `kite` (with no arguments) to launch the full-screen terminal UI.
 
 ## Reporting issues & security
 

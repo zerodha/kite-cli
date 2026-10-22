@@ -63,7 +63,7 @@ Both commands download the public scheme list directly on each run and do not re
 
 ## In the Terminal UI
 
-The **Invest** workspace (`6`) displays your mutual fund holdings with current value, P&L, and day change in a sortable table. See [TUI — Invest](tui.md#invest).
+The **MF** pane in the **Portfolio** workspace (`3`) displays your mutual fund holdings with current value, P&L, and day change in a sortable table. See [TUI: Portfolio](tui.md#portfolio-positions-mf-holdings-funds).
 
 ---
 

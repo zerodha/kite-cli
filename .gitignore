@@ -3,5 +3,6 @@
 /demo/
 /.claude/worktrees
 /target-msrv
+__pycache__/
 
 /.env

@@ -247,6 +247,7 @@ pub struct App {
     pub movers_failed: Option<String>,
     pub positions: Option<PositionsData>,
     pub holdings: Option<Vec<Holding>>,
+    pub holdings_error: Option<String>,
 
     pub auctions: Option<Vec<AuctionHolding>>,
     pub bids: bids::State,

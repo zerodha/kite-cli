@@ -413,7 +413,7 @@ pub(super) fn hints_for(
                     ]
                 }
             }
-            PaneId::InvestMf => {
+            PaneId::PortfolioMf => {
                 const {
                     &[
                         always(&["Ctrl-K:commands", "Tab:pane", "?:help"]),
@@ -426,11 +426,11 @@ pub(super) fn hints_for(
             PaneId::InvestBids => {
                 const {
                     &[
-                        always(&["Ctrl-K:commands", "Tab:pane", "?:help"]),
+                        always(&["Ctrl-K:commands", "?:help"]),
                         trade(&["s:sell auction"]),
                         act(&["Enter:Kite Web"]),
                         nav(&["[ ]:section", "a:applications", "j/k:move"]),
-                        show(&["r:refresh", "z:zoom", "=:dividers"]),
+                        show(&["r:refresh"]),
                         app(&["n:notes", "T:theme", "q:quit"]),
                     ]
                 }
@@ -748,6 +748,12 @@ mod tests {
         assert!(hints.contains(&"[ ]:section"), "{hints:?}");
         assert!(hints.contains(&"a:applications"), "{hints:?}");
         assert!(hints.contains(&"Enter:Kite Web"), "{hints:?}");
+        for hint in ["Tab:pane", "z:zoom", "=:dividers"] {
+            assert!(
+                !hints.contains(&hint),
+                "single pane offers {hint}: {hints:?}"
+            );
+        }
     }
 
     #[test]

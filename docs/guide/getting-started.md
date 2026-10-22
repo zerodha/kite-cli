@@ -22,7 +22,10 @@ Source builds require an API root, API key, and WebSocket ticker URL. You can su
 
 ## Sign in
 
-Run `kite auth login` in an interactive terminal:
+You can sign in either directly inside the terminal UI or from the shell (both share the same saved session):
+
+- **In the TUI** — Run `kite`. If no active session is found, `kite` opens an interactive sign-in screen before loading your workspace.
+- **From the CLI** — Run `kite auth login` in an interactive terminal before running non-interactive CLI commands:
 
 ```bash
 kite auth login
@@ -36,7 +39,7 @@ kite auth login
 Press `Enter` at any prompt to accept a default value shown in brackets.
 
 - **Credential storage** — `kite` saves only your `user_id` and `access_token` to `config.json`. It **never** stores your password or two-factor code. On Unix systems, `config.json` is written with mode `0600` (readable and writable only by your user).
-- **Interactive requirement** — `kite auth login` requires an interactive TTY and refuses `--json` or piped stdin. You can also sign in directly through the TUI by running `kite`.
+- **Interactive requirement** — `kite auth login` requires an interactive TTY and refuses `--json` or piped stdin.
 
 To print the path to your session file:
 

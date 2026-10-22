@@ -409,7 +409,7 @@ mod view_tone_tests {
                 fill: |app| app.gtts = Some(Vec::new()),
             },
             Case {
-                view: PaneId::InvestMf,
+                view: PaneId::PortfolioMf,
                 draw: draw_mf,
                 unknown: "MF not available yet",
                 empty: "No mutual fund holdings",
@@ -456,7 +456,7 @@ mod view_tone_tests {
     fn the_empty_mf_book_still_names_coin() {
         let _guard = tone_theme();
         let mut app = app();
-        app.set_pane(PaneId::InvestMf);
+        app.set_pane(PaneId::PortfolioMf);
         app.mf_holdings = Some(Vec::new());
         let empty = panel(&app, draw_mf);
         assert!(

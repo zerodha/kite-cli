@@ -262,7 +262,7 @@ mod tests {
             );
         }
         assert_eq!(
-            cycle_interval_key(&App::menu_rows(PaneId::InvestMf, &[])),
+            cycle_interval_key(&App::menu_rows(PaneId::PortfolioMf, &[])),
             None
         );
     }
@@ -327,7 +327,7 @@ mod tests {
         for pane in [
             PaneId::OverviewPositions,
             PaneId::TradingWatch,
-            PaneId::InvestMf,
+            PaneId::PortfolioMf,
             PaneId::OrdersGtt,
             PaneId::DerivativesChain,
             PaneId::InvestBids,
@@ -388,7 +388,7 @@ mod tests {
                 .any(|item| matches!(item, ExecItem::Action(MenuAction::CycleIndicator))),
             "the Chart pane has a chart, so the indicator action is offered"
         );
-        app.set_pane(PaneId::InvestMf);
+        app.set_pane(PaneId::PortfolioMf);
         assert!(
             !exec_items(&app, "indicator")
                 .iter()

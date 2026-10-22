@@ -49,7 +49,7 @@ fn help_bindings(pane: PaneId) -> Vec<HelpSection> {
                 vec![
                     b(
                         "1-6",
-                        "the six workspaces, in strip order: Overview, Trading, Portfolio, Derivatives, Orders, Invest",
+                        "the six workspaces, in strip order: Overview, Trading, Portfolio, Option Chain, Orders, IPO & Bids",
                     ),
                     b("← / →", "previous / next workspace"),
                     b(
@@ -83,7 +83,7 @@ fn help_bindings(pane: PaneId) -> Vec<HelpSection> {
                     ),
                     b(
                         ":workspace NAME",
-                        "switch workspace by name: Overview, Trading, Portfolio, Derivatives, Orders or Invest",
+                        "switch workspace by name: Overview, Trading, Portfolio, Option Chain, Orders or IPO & Bids",
                     ),
                     b("Tab", "in the palette: complete, never run"),
                     b("r", "refresh account data"),
@@ -258,7 +258,7 @@ fn help_bindings(pane: PaneId) -> Vec<HelpSection> {
             ),
             seam_group(),
         ],
-        PaneId::InvestMf => vec![flat_group(vec![b("S", "cycle sort")]), seam_group()],
+        PaneId::PortfolioMf => vec![flat_group(vec![b("S", "cycle sort")]), seam_group()],
         PaneId::InvestBids => vec![
             group(
                 "Sections",
@@ -282,7 +282,6 @@ fn help_bindings(pane: PaneId) -> Vec<HelpSection> {
                     "open a fixed SELL CNC LIMIT DAY ticket for the selected auction holding",
                 )],
             ),
-            seam_group(),
         ],
         PaneId::OverviewPositions | PaneId::OverviewHoldings => vec![
             group(
@@ -369,7 +368,7 @@ fn help_bindings(pane: PaneId) -> Vec<HelpSection> {
                 "Instrument",
                 vec![b(
                     "source",
-                    "a chart leaf draws what its source pane names, Trading's watch row, or the Derivatives chain's underlying spot, so it has no row and no trade key of its own",
+                    "a chart leaf draws what its source pane names, Trading's watch row, or the Option Chain's underlying spot, so it has no row and no trade key of its own",
                 )],
             ),
             seam_group(),
@@ -683,6 +682,17 @@ mod tests {
     }
 
     #[test]
+    fn the_single_pane_bids_section_offers_no_divider_bindings() {
+        let keys: Vec<&str> = help_bindings(PaneId::InvestBids)[1]
+            .groups
+            .iter()
+            .flat_map(|group| group.bindings.iter().map(|binding| binding.key))
+            .collect();
+        assert!(!keys.contains(&"="), "{keys:?}");
+        assert!(!keys.contains(&"drag a border"), "{keys:?}");
+    }
+
+    #[test]
     fn every_pane_has_its_own_section_with_bindings() {
         for pane in every_pane() {
             let sections = help_bindings(pane);
@@ -835,7 +845,7 @@ mod tests {
         for pane in [
             PaneId::OverviewPositions,
             PaneId::TradingWatch,
-            PaneId::InvestMf,
+            PaneId::PortfolioMf,
             PaneId::OrdersGtt,
             PaneId::DerivativesChain,
         ] {

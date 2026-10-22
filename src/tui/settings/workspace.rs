@@ -14,7 +14,7 @@ fn legacy_destination(token: &str) -> Option<PaneId> {
         "orders" => PaneId::OrdersBook,
         "gtt" => PaneId::OrdersGtt,
         "alerts" => PaneId::OrdersAlerts,
-        "mf" => PaneId::InvestMf,
+        "mf" => PaneId::PortfolioMf,
         "bids" => PaneId::InvestBids,
         "chain" => PaneId::DerivativesChain,
         _ => return None,
@@ -301,6 +301,24 @@ mod tests {
     }
 
     #[test]
+    fn mf_saved_under_invest_drops_and_its_portfolio_entry_restores() {
+        let settings = from_json(
+            r#"{"workspaces":{"version":2,"accounts":{"AB1234":{
+                "active":"invest",
+                "focused":{"invest":"invest.mf","portfolio":"portfolio.mf"},
+                "maximized":{"invest":"invest.mf"}
+            }}}}"#,
+        );
+        let prefs = settings.workspace_preferences("AB1234");
+        assert_eq!(prefs.active, Some(Preset::Invest));
+        assert_eq!(
+            prefs.focused,
+            vec![(Preset::Portfolio, PaneId::PortfolioMf)]
+        );
+        assert_eq!(prefs.maximized, Vec::new());
+    }
+
+    #[test]
     fn workspace_preferences_are_keyed_by_account() {
         let settings = from_json(
             r#"{"workspaces":{"version":2,"accounts":{
@@ -450,7 +468,7 @@ mod tests {
             ("orders", Preset::Orders, PaneId::OrdersBook),
             ("gtt", Preset::Orders, PaneId::OrdersGtt),
             ("alerts", Preset::Orders, PaneId::OrdersAlerts),
-            ("mf", Preset::Invest, PaneId::InvestMf),
+            ("mf", Preset::Portfolio, PaneId::PortfolioMf),
             ("bids", Preset::Invest, PaneId::InvestBids),
             ("chain", Preset::Derivatives, PaneId::DerivativesChain),
         ] {

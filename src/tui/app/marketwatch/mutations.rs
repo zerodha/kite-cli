@@ -20,11 +20,12 @@ impl App {
         let watch = instance.watch().cloned();
         let index = instance.display_row(&self.watch);
 
-        if self
+        if let Some(idx) = self
             .watch_rows_of(pane)
             .iter()
-            .any(|item| item.instrument_token == inst.instrument_token)
+            .position(|item| item.instrument_token == inst.instrument_token)
         {
+            self.select_watch_row(pane, idx);
             self.toast(
                 ToastLevel::Info,
                 format!("{} already on watchlist", inst.label()),
@@ -123,16 +124,18 @@ impl App {
             .iter()
             .position(|item| item.instrument_token == inst.instrument_token)
         {
-            Some(idx) => {
-                if let Some((instance, store)) = self.watch_instance_mut(pane)
-                    && instance.select(idx, store)
-                {
-                    self.trading_chart.set_cursor(None);
-                }
-                self.sync_subscriptions();
-            }
+            Some(idx) => self.select_watch_row(pane, idx),
             None => self.add_watch_item(pane, inst),
         }
+    }
+
+    fn select_watch_row(&mut self, pane: PaneId, idx: usize) {
+        if let Some((instance, store)) = self.watch_instance_mut(pane)
+            && instance.select(idx, store)
+        {
+            self.trading_chart.set_cursor(None);
+        }
+        self.sync_subscriptions();
     }
 
     pub(in crate::tui::app) fn move_watch_row(&mut self, pane: PaneId, delta: isize) {

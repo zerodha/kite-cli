@@ -114,7 +114,7 @@ impl App {
 
 #[cfg(test)]
 mod marketwatch_tests {
-    use super::super::test_support::master_inst;
+    use super::super::test_support::{master_inst, screen};
     use super::super::{App, MenuAction, Modal};
     use crate::tui::data::DataEvent;
     use crate::tui::event::AppEvent;
@@ -395,6 +395,92 @@ mod marketwatch_tests {
                 .iter()
                 .any(|text| text.contains("already on watchlist"))
         );
+    }
+
+    fn scrip(at: u32) -> serde_json::Value {
+        json!({"id": format!("ITEM:{at}"), "weight": f64::from(at), "segment": "NSE",
+               "tradingsymbol": format!("SCRIP{at:02}"), "exchange": "NSE",
+               "instrument_token": 1_000 + at})
+    }
+
+    fn scrip_inst(at: u32) -> Instrument {
+        master_inst("NSE", "NSE", &format!("SCRIP{at:02}"), 1_000 + at)
+    }
+
+    #[tokio::test]
+    async fn a_duplicate_add_selects_the_existing_row_across_groups_without_a_request() {
+        let server = MockServer::start_async().await;
+        let marketwatch = server
+            .mock_async(|when, then| {
+                when.path_includes("/api/marketwatch");
+                then.status(500);
+            })
+            .await;
+        let (mut app, _rx) = watch_app(&server);
+        app.set_workspace(Preset::Trading);
+        app.watch.set_catalog(Ok(catalog(catalog_body())));
+        let watch = WatchId::from("W1");
+        app.watch_pane.open(watch.clone());
+        let generation = app.watch.open(&watch);
+        let mut body = detail_body(json!((0..20).map(scrip).collect::<Vec<_>>()));
+        body["groups"].as_array_mut().expect("groups").push(json!({
+            "id": "GROUP:later", "name": "Later", "weight": 2,
+            "items": (20..46).map(scrip).collect::<Vec<_>>()
+        }));
+        app.watch.set_detail(&watch, generation, Ok(detail(body)));
+        app.reconcile_watch();
+        assert!(
+            !screen(&app, 120, 35).contains("NSE:SCRIP45"),
+            "starts offscreen"
+        );
+
+        app.trading_chart.set_cursor(Some(5));
+        app.add_watch_item(PaneId::TradingWatch, &scrip_inst(45));
+        assert_eq!(app.watch_pane.display_row(&app.watch), 45);
+        assert_eq!(
+            app.trading_chart.cursor(),
+            None,
+            "a new row resets the chart"
+        );
+        assert!(screen(&app, 120, 35).contains("▶ NSE:SCRIP45"));
+
+        app.trading_chart.set_cursor(Some(5));
+        app.add_watch_item(PaneId::TradingWatch, &scrip_inst(45));
+        assert_eq!(app.watch_pane.display_row(&app.watch), 45);
+        assert_eq!(
+            app.trading_chart.cursor(),
+            Some(5),
+            "re-adding the selected row keeps the chart"
+        );
+
+        app.add_watch_item(PaneId::TradingWatch, &scrip_inst(3));
+        assert_eq!(app.watch_pane.display_row(&app.watch), 3);
+        assert_eq!(app.watch.pending(), None);
+        assert_eq!(app.watch_items().len(), 46);
+        assert_eq!(
+            toasts(&app)
+                .iter()
+                .filter(|text| text.contains("already on watchlist"))
+                .count(),
+            3
+        );
+        tokio::task::yield_now().await;
+        marketwatch.assert_calls_async(0).await;
+    }
+
+    #[tokio::test]
+    async fn a_duplicate_add_to_a_temporary_list_selects_the_row() {
+        let server = MockServer::start_async().await;
+        let (mut app, _rx) = watch_app(&server);
+        app.set_watch_for_test(WatchState::ephemeral(vec![
+            WatchItem::from_token(408_065),
+            WatchItem::from_token(2_953_217),
+        ]));
+        let mut inst = scrip_inst(0);
+        inst.instrument_token = 2_953_217;
+        app.add_watch_item(PaneId::TradingWatch, &inst);
+        assert_eq!(app.watch_pane.display_row(&app.watch), 1);
+        assert_eq!(app.watch_items().len(), 2);
     }
 
     #[tokio::test]

@@ -84,6 +84,7 @@ impl App {
             DataEvent::ExternalLink(Err(error)) => self.toast_error(error),
             DataEvent::Holdings(Ok(holdings)) => {
                 self.holdings = Some(holdings);
+                self.holdings_error = None;
                 self.holdings_gen += 1;
                 self.reconcile_book(Book::Holdings);
                 self.reconcile_chart_target();
@@ -268,8 +269,11 @@ impl App {
                     self.handle_data_error(err);
                 }
             }
+            DataEvent::Holdings(Err(err)) => {
+                self.holdings_error = Some(err.clone());
+                self.handle_data_error(err);
+            }
             DataEvent::Positions(Err(err))
-            | DataEvent::Holdings(Err(err))
             | DataEvent::MfHoldings(Err(err))
             | DataEvent::Orders(Err(err))
             | DataEvent::Margins(Err(err))
@@ -317,6 +321,20 @@ mod tests {
     use kiteconnect::OrderType;
     use kiteconnect::ticker::TickerEvent;
     use std::sync::Arc;
+
+    #[test]
+    fn a_holdings_load_error_stays_until_holdings_load() {
+        let mut app = test_app();
+        let error = "kite API error NetworkException (HTTP 429): Too many requests";
+        app.on_event(AppEvent::Data(DataEvent::Holdings(Err(error.to_string()))));
+        assert_eq!(app.holdings_error.as_deref(), Some(error));
+        assert!(app.holdings.is_none());
+        app.on_event(AppEvent::Data(DataEvent::Holdings(Ok(vec![holding(
+            "INFY", 408_065, 100.0, 110.0, 100.0, 5,
+        )]))));
+        assert!(app.holdings_error.is_none());
+        assert_eq!(app.holdings.as_ref().map(Vec::len), Some(1));
+    }
 
     #[tokio::test]
     async fn a_new_day_always_dispatches_an_instrument_reload() {

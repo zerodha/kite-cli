@@ -66,7 +66,7 @@ impl App {
             PaneId::DerivativesChain => self.derivatives_chain.display_row(),
             PaneId::OrdersGtt => self.gtts_display_row(&self.gtts_display_order()),
             PaneId::OrdersAlerts => self.alerts_display_row(&self.alerts_display_order()),
-            PaneId::InvestMf => self.mf_display_row(&self.mf_display_order()),
+            PaneId::PortfolioMf => self.mf_display_row(&self.mf_display_order()),
             PaneId::InvestBids => self.bids_pane.display_row(&self.bids_row_keys()),
             PaneId::OverviewIndices
             | PaneId::OverviewMovers
@@ -196,7 +196,7 @@ impl App {
             PaneId::PortfolioHoldings | PaneId::PortfolioFunds => {
                 data::spawn_refresh_holdings(client.clone(), tx.clone());
             }
-            PaneId::InvestMf => data::spawn_refresh_mf_holdings(client.clone(), tx.clone()),
+            PaneId::PortfolioMf => data::spawn_refresh_mf_holdings(client.clone(), tx.clone()),
             PaneId::OrdersGtt => data::spawn_refresh_gtts(client.clone(), tx.clone()),
 
             PaneId::OrdersAlerts => {
@@ -227,6 +227,7 @@ mod tests {
     use super::super::panes::positions::tests::positions_book_app;
     use super::super::test_support::{char_key, position};
     use crate::tui::data::DataEvent;
+    use crate::tui::event::AppEvent;
     use crate::tui::marketwatch::{State as WatchState, WatchItem};
     use crate::tui::notes::Pad;
     use crate::tui::settings::Settings;
@@ -347,6 +348,70 @@ mod tests {
             Some("AAA".to_string()),
             "an explicit row choice brings the pane back"
         );
+    }
+
+    #[tokio::test]
+    async fn tab_reaches_mf_in_portfolio_and_r_refreshes_its_holdings() {
+        let server = httpmock::MockServer::start_async().await;
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(httpmock::Method::GET)
+                    .path("/portfolio/holdings/mf");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(include_str!("../../../mock_responses/mf_holdings.json"));
+            })
+            .await;
+        let client = KiteConnect::builder("test-key")
+            .access_token(kiteconnect::AccessToken::new("tok").unwrap())
+            .base_url(server.base_url())
+            .build()
+            .unwrap();
+        let (events_tx, mut events_rx) = mpsc::channel(8);
+        let mut app = App::new(
+            client,
+            events_tx,
+            WatchState::test_loaded(Vec::new()),
+            Pad::default(),
+            false,
+            &Settings::default(),
+        );
+        app.switch_workspace(Preset::Portfolio);
+        let tab = crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Tab,
+            crossterm::event::KeyModifiers::NONE,
+        );
+        let mut order = vec![app.focused_pane()];
+        for _ in 0..4 {
+            app.on_key(tab);
+            order.push(app.focused_pane());
+        }
+        assert_eq!(
+            order,
+            [
+                PaneId::PortfolioPositions,
+                PaneId::PortfolioMf,
+                PaneId::PortfolioHoldings,
+                PaneId::PortfolioFunds,
+                PaneId::PortfolioPositions,
+            ]
+        );
+
+        app.on_key(tab);
+        app.on_key(char_key('r'));
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let event = tokio::time::timeout_at(deadline, events_rx.recv())
+                .await
+                .expect("MF holdings arrive within the deadline")
+                .unwrap();
+            if matches!(event, AppEvent::Data(DataEvent::MfHoldings(_))) {
+                app.on_event(event);
+                break;
+            }
+        }
+        assert_eq!(app.mf_holdings.as_ref().map(Vec::len), Some(3));
+        mock.assert_calls_async(1).await;
     }
 
     #[tokio::test]

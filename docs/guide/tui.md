@@ -49,7 +49,7 @@ Bracketed paste inserts text into the focused field. Single-line fields accept o
 ## The screen
 
 ```text
- kite  1 Overview  2 Trading  3 Portfolio  4 Derivatives  5 Orders  6 Invest   ● live | open | 14:32:05 │ tabs + status
+ kite  1 Overview  2 Trading  3 Portfolio  4 Option Chain  5 Orders  6 IPO & Bids   ● live | open | 14:32:05 │ tabs + status
 ┌ > Watchlist · Default ──────┐┌ Chart | NSE:INFY | 5m ──────────────────────┐
 │  SYMBOL       LTP     CHG%  ││                                             │
 │ ▶NSE:INFY 🔔 1523.40  +0.80  ││   candles of the selected watch row          │ Trading: the
@@ -110,10 +110,10 @@ Each workspace consists of a fixed arrangement of panes. Every pane maintains it
 | --- | --- | --- |
 | `1` | **Overview** | Positions and Holdings snapshots, Indices, Movers |
 | `2` | **Trading** | Watch on the left; Chart above Depth and Orders on the right |
-| `3` | **Portfolio** | Positions on the left; Holdings above Funds on the right |
-| `4` | **Derivatives** | Option Chain on the left; underlying spot Chart on the right |
+| `3` | **Portfolio** | Positions above Mutual Funds (MF) on the left; Holdings above Funds on the right |
+| `4` | **Option Chain** | Option Chain on the left; underlying spot Chart on the right |
 | `5` | **Orders** | Orders on the left; GTT above Alerts on the right |
-| `6` | **Invest** | Mutual Funds (MF) on the left; Bids on the right |
+| `6` | **IPO & Bids** | Bids |
 
 The **Orders** pane in the Trading workspace and the **Orders** pane in the Orders workspace display the same underlying order book as two independent views: sorting, marking, or scrolling one does not affect the other.
 
@@ -152,7 +152,7 @@ The default workspace at session start. It is strictly read-only.
 - **Inspect and sort:** Press `Enter` to view full order details and state history. Press `S` to cycle the sort order (`time`, `status`, `symbol`). Press `c` to open an inline candlestick chart for the order's instrument.
 - **Live updates:** The pane polls every 5 seconds and immediately after any order action. In addition, real-time order updates over the WebSocket display an `order update: SYMBOL STATUS` toast and trigger an immediate refresh of both orders and positions.
 
-### Portfolio: Positions, Holdings, Funds
+### Portfolio: Positions, MF, Holdings, Funds
 
 **Positions** displays your open and closed positions for the day: product, symbol, net quantity, average price, live LTP, live P&L, and day change `%`. A summary header above the table shows total P&L (Kite's `pnl`, including carried-forward derivatives positions) broken down into realised and unrealised P&L, alongside the `open/total` position count.
 
@@ -168,16 +168,20 @@ The default workspace at session start. It is strictly read-only.
 - **CDSL authorisation and alerts:** On the Holdings pane, `a` opens the CDSL TPIN/OTP authorisation flow (for accounts requiring sell consent), `B` opens the price-alert form for the selected holding, and `A` jumps to the Alerts workspace pane.
 - **Sort and chart:** Press `S` to cycle the sort order. Press `c` to toggle an inline candlestick chart.
 
+**MF** displays your mutual fund holdings: fund name, units, average NAV, current NAV, invested amount, current value, P&L, net return `%`, and day change `%`. This pane is read-only and refreshes alongside equity holdings (every 30 seconds by default). Press `S` to cycle the sort order (`name`, `value`, `P&L`, `day change`). To view mutual fund orders, SIPs, or fund factsheets, use the [`kite mf`](mutual-funds.md) CLI commands.
+
 **Funds** displays the equity and commodity margin tables side by side. Pressing `F` from anywhere in the TUI opens the same breakdown in a modal.
 
-### Derivatives: option chain
+`Tab` moves focus through Positions, MF, Holdings, and Funds.
+
+### Option Chain
 
 Builds a call/put strike ladder for a single underlying and expiry using the cached instrument master (requiring no extra HTTP calls to build the ladder).
 
 - **Select underlying:** Press `u` to cycle through built-in index underlyings (`NIFTY`, `BANKNIFTY`, `FINNIFTY`, `MIDCPNIFTY`, `SENSEX`, `BANKEX`). Press `/` to search for any F&O stock underlying; if the chosen instrument has no option contracts, the TUI notifies you and keeps the current chain.
 - **Navigate strikes and expiries:** Press `[` and `]` to switch expiry dates. Press `h` and `l` to focus the Call (`CE`) or Put (`PE`) side. Press `j` and `k` to move across strikes.
 - **Trade or alert on a leg:** Press `b` or `s` to open an order ticket for the focused option contract at the selected strike (defaulting to `NRML`). Press `a` to set a price alert on that option leg.
-- **Live streaming:** While the Derivatives workspace is visible, the underlying spot and the expiry's call and put contracts stream in `full` mode (providing live LTP, volume, OI, and bid/ask). Subscriptions populate outward from the at-the-money (ATM) strike up to Kite's 3,000-instrument WebSocket limit.
+- **Live streaming:** While the Option Chain workspace is visible, the underlying spot and the expiry's call and put contracts stream in `full` mode (providing live LTP, volume, OI, and bid/ask). Subscriptions populate outward from the at-the-money (ATM) strike up to Kite's 3,000-instrument WebSocket limit.
 - **ATM centring and chart:** Whenever the ladder is rebuilt (on underlying or expiry change), the selection centres on the ATM strike. The **Chart** pane beside the chain always plots the underlying spot price, not the focused option leg.
 
 ### Orders: Orders, GTT, Alerts
@@ -186,9 +190,8 @@ Builds a call/put strike ladder for a single underlying and expiry using the cac
 - **GTT:** Lists all Good Till Triggered rules on your account. Press `m` on an `active` trigger to modify it in the GTT ticket. Press `x` to delete the selected trigger after confirmation. Press `S` to cycle the sort order. The pane refreshes every 60 seconds. New GTT triggers are created with `g` from the Watch or Holdings panes.
 - **Alerts:** Lists all server-side price alerts on your Kite account: name, symbol, condition, status, disable reason (if disabled by Kite), trigger count, alert type (`SIMPLE` or `ATO n` for an Alert-to-Order with `n` basket items), and creation date. Selecting an `ATO` alert displays its basket of orders in a sub-panel below the table. See [Price alerts](#price-alerts).
 
-### Invest
+### IPO & Bids
 
-- **MF:** Displays your mutual fund holdings: fund name, units, average NAV, current NAV, invested amount, current value, P&L, net return `%`, and day change `%`. This pane is read-only and refreshes alongside equity holdings (every 30 seconds by default). Press `S` to cycle the sort order (`name`, `value`, `P&L`, `day change`). To view mutual fund orders, SIPs, or fund factsheets, use the [`kite mf`](mutual-funds.md) CLI commands.
 - **Bids:** Displays IPOs, government securities (G-Secs), auctions, corporate actions, and Social Stock Exchange (SSE) IPOs. Press `[` and `]` (or click a section tab) to switch sections:
   - Press `a` in the **IPO** section to toggle between open issues and your submitted applications.
   - Press `Enter` to open the active section on Kite Web in your browser to apply or bid.
@@ -220,7 +223,7 @@ Watchlists in the TUI are your live Kite account watchlists—the exact same lis
 
 ## Instrument search
 
-Press `/` on the Watch or Option Chain pane to open the instrument search modal. Search performs a fuzzy character-order match against both trading symbols and company/contract names in the local instrument cache, ranking exact prefix matches first. Prefix your query with an exchange (such as `NSE:`) to filter by exchange. Press `Enter` to add the selected instrument to the active watchlist (or load its option chain in Derivatives).
+Press `/` on the Watch or Option Chain pane to open the instrument search modal. Search performs a fuzzy character-order match against both trading symbols and company/contract names in the local instrument cache, ranking exact prefix matches first. Prefix your query with an exchange (such as `NSE:`) to filter by exchange. Press `Enter` to add the selected instrument to the active watchlist (or load its option chain in the Option Chain workspace).
 
 If the instrument master fails to load, the search modal displays the error and remains open; press `Ctrl-R` to retry downloading the master. Modifying an existing order, GTT trigger, or ATO basket item also relies on the cached instrument master to validate exact tick and lot sizes.
 
@@ -325,7 +328,7 @@ An Alert-to-Order (ATO) alert executes a basket of up to 20 orders on Kite's ser
 
 ## Chart
 
-The **Trading** and **Derivatives** workspaces include a dedicated **Chart** pane. On the **Orders** and **Holdings** panes, pressing `c` opens an inline candlestick chart for the selected row's instrument across the workspace; press `c` or `Esc` (or switch workspaces) to close it. On **Positions**, `c` is bound to product conversion, so open a position's chart via `Ctrl-K` → **Toggle chart**.
+The **Trading** and **Option Chain** workspaces include a dedicated **Chart** pane. On the **Orders** and **Holdings** panes, pressing `c` opens an inline candlestick chart for the selected row's instrument across the workspace; press `c` or `Esc` (or switch workspaces) to close it. On **Positions**, `c` is bound to product conversion, so open a position's chart via `Ctrl-K` → **Toggle chart**.
 
 - **Expand (`C`):** Toggles whether the chart fills the entire workspace or shares the split layout with its sibling panes.
 - **Interval (`i`):** Cycles the candle interval across `1m`, `5m`, `15m`, `1h`, and `1D` (with lookback windows of 7, 30, 90, 180, and 250 days, respectively).
@@ -374,7 +377,7 @@ Press `:` to open the command palette. Press `Tab` to autocomplete, `Enter` to e
 | `alert` | Pick an instrument first, then open the price-alert form |
 | `SYMBOL` | Search for `SYMBOL` to add it to the active watchlist or jump to it |
 | `watch`, `positions`, `orders`, `holdings`, `mf`, `gtt`, `alerts`, `bids` (or unique prefix) | Jump directly to that pane |
-| `overview`, `trading`, `portfolio`, `derivatives`, `invest`, `workspace NAME` | Switch to that workspace |
+| `overview`, `trading`, `portfolio`, `derivatives`, `invest`, `workspace NAME` | Switch to that workspace (`derivatives` opens Option Chain, `invest` opens IPO & Bids) |
 | `auction` | Open the Bids pane (use `[`/`]` to switch to the Auctions section) |
 | `wl NAME` | Switch to the account watchlist named `NAME`, or create it if it does not exist |
 | `wl rename NAME` | Rename the currently open watchlist on your account |
@@ -410,7 +413,7 @@ Press `?` anywhere in the TUI to view the contextual shortcut list for the curre
 
 | Key | Action |
 | --- | --- |
-| `1` – `6` | Switch workspace (`Overview`, `Trading`, `Portfolio`, `Derivatives`, `Orders`, `Invest`). `7` – `0` are unbound |
+| `1` – `6` | Switch workspace (`Overview`, `Trading`, `Portfolio`, `Option Chain`, `Orders`, `IPO & Bids`). `7` – `0` are unbound |
 | `→` / `←` | Next / previous workspace |
 | `Tab` / `Shift-Tab` | Next / previous pane in the active workspace |
 | `` ` `` | Open the workspace picker |
@@ -532,7 +535,7 @@ Interactive preferences changed inside the TUI are written back to `tui.json` im
 | `selected_watch` | Per-user map tracking the last open watchlist ID. Managed automatically by the TUI. |
 | `poll_secs` | Background refresh intervals in seconds (clamped to `2`–`600`) for `orders`, `positions`, `holdings`, `margins`, `gtt`, and `alerts`. Mutual fund holdings share the `holdings` interval. |
 
-- **`splits` keys:** `chart_right`, `chart_bottom`, `overview_main`, `overview_books`, `trading_root`, `trading_right`, `trading_bottom`, `portfolio_root`, `portfolio_right`, `derivatives_root`, `orders_root`, `orders_right`, `invest_root` (legacy `watch_detail` is ignored).
+- **`splits` keys:** `chart_right`, `chart_bottom`, `overview_main`, `overview_books`, `trading_root`, `trading_right`, `trading_bottom`, `portfolio_root`, `portfolio_left`, `portfolio_right`, `derivatives_root`, `orders_root`, `orders_right` (legacy `watch_detail` is ignored).
 - **`workspaces` schema migration:** Written with a `version` field. The TUI transparently migrates `version: 1` state (from before multi-pane workspaces) to the corresponding modern workspaces and preserves unknown future versions untouched.
 
 ### Themes
@@ -655,8 +658,8 @@ A WebSocket ticker handshake rejection does not necessarily mean your REST sessi
 
 ## What the TUI does not do
 
-- **Multi-leg options strategy builder:** The Derivatives workspace provides a live option chain ladder and single-leg order ticket, not payoff graphs or multi-leg strategy execution.
-- **Mutual fund order placement or SIP creation:** The Invest workspace's MF pane is read-only (use [`kite mf`](mutual-funds.md) CLI commands to inspect orders, SIPs, and fund lists).
+- **Multi-leg options strategy builder:** The Option Chain workspace provides a live option chain ladder and single-leg order ticket, not payoff graphs or multi-leg strategy execution.
+- **Mutual fund order placement or SIP creation:** The Portfolio workspace's MF pane is read-only (use [`kite mf`](mutual-funds.md) CLI commands to inspect orders, SIPs, and fund lists).
 - **Multi-account switching:** Switching to a different Kite user ID requires logging out and signing back in.
 - **Custom columns, keybindings, or indicator periods:** Table columns, keyboard shortcuts, and technical indicator lookback periods are fixed.
 - **OS desktop notifications:** Kite dispatches push/email alerts from its servers; the TUI adds an in-app message and terminal bell while open.

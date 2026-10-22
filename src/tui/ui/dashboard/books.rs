@@ -268,6 +268,17 @@ pub(in crate::tui::ui) fn draw_holdings_panel(
     frame.render_widget(block, area);
 
     let Some(holdings) = holdings.filter(|_| count > 0) else {
+        if let (None, Some(error)) = (&app.holdings, &app.holdings_error) {
+            ui::state_message(
+                frame,
+                inner,
+                ui::MessageTone::Error,
+                "Holdings unavailable",
+                Some(error),
+                Some("r Retry"),
+            );
+            return;
+        }
         let headline = if app.holdings.is_none() {
             "Holdings not available yet"
         } else {
@@ -585,6 +596,17 @@ mod tests {
             .draw(|frame| draw(frame, frame.area(), app, true))
             .unwrap();
         buffer_rows(terminal.backend().buffer())
+    }
+
+    #[test]
+    fn a_failed_holdings_load_shows_the_error_instead_of_waiting() {
+        let mut app = book_app(PaneId::OverviewHoldings);
+        app.holdings = None;
+        app.holdings_error = Some("kite API error NetworkException (HTTP 429)".to_string());
+        let rows = panel_rows(&app, 60, 8, draw_holdings_panel).join("\n");
+        assert!(rows.contains("Holdings unavailable"), "{rows}");
+        assert!(rows.contains("NetworkException (HTTP 429)"), "{rows}");
+        assert!(!rows.contains("not available yet"), "{rows}");
     }
 
     #[test]

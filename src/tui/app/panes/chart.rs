@@ -375,7 +375,7 @@ mod tests {
             PaneId::OverviewPositions,
             PaneId::DerivativesChain,
             PaneId::InvestBids,
-            PaneId::InvestMf,
+            PaneId::PortfolioMf,
         ] {
             app.set_pane(pane);
             assert_eq!(app.acting_chart(pane), None);

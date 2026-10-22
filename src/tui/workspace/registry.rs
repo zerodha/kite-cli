@@ -11,12 +11,12 @@ pub enum PaneId {
     PortfolioPositions,
     PortfolioHoldings,
     PortfolioFunds,
+    PortfolioMf,
     DerivativesChain,
     DerivativesChart,
     OrdersBook,
     OrdersGtt,
     OrdersAlerts,
-    InvestMf,
     InvestBids,
 }
 
@@ -34,12 +34,12 @@ impl PaneId {
             PaneId::PortfolioPositions => "portfolio.positions",
             PaneId::PortfolioHoldings => "portfolio.holdings",
             PaneId::PortfolioFunds => "portfolio.funds",
+            PaneId::PortfolioMf => "portfolio.mf",
             PaneId::DerivativesChain => "derivatives.chain",
             PaneId::DerivativesChart => "derivatives.chart",
             PaneId::OrdersBook => "orders.orders",
             PaneId::OrdersGtt => "orders.gtt",
             PaneId::OrdersAlerts => "orders.alerts",
-            PaneId::InvestMf => "invest.mf",
             PaneId::InvestBids => "invest.bids",
         }
     }
@@ -66,7 +66,7 @@ impl PaneId {
             PaneId::DerivativesChain => "Chain",
             PaneId::OrdersGtt => "GTT",
             PaneId::OrdersAlerts => "Alerts",
-            PaneId::InvestMf => "MF",
+            PaneId::PortfolioMf => "MF",
             PaneId::InvestBids => "Bids",
         }
     }
@@ -81,12 +81,13 @@ impl PaneId {
             | PaneId::TradingChart
             | PaneId::TradingDepth
             | PaneId::TradingOrders => Preset::Trading,
-            PaneId::PortfolioPositions | PaneId::PortfolioHoldings | PaneId::PortfolioFunds => {
-                Preset::Portfolio
-            }
+            PaneId::PortfolioPositions
+            | PaneId::PortfolioMf
+            | PaneId::PortfolioHoldings
+            | PaneId::PortfolioFunds => Preset::Portfolio,
             PaneId::DerivativesChain | PaneId::DerivativesChart => Preset::Derivatives,
             PaneId::OrdersBook | PaneId::OrdersGtt | PaneId::OrdersAlerts => Preset::Orders,
-            PaneId::InvestMf | PaneId::InvestBids => Preset::Invest,
+            PaneId::InvestBids => Preset::Invest,
         }
     }
 }
@@ -128,9 +129,9 @@ impl Preset {
             Preset::Overview => "Overview",
             Preset::Trading => "Trading",
             Preset::Portfolio => "Portfolio",
-            Preset::Derivatives => "Derivatives",
+            Preset::Derivatives => "Option Chain",
             Preset::Orders => "Orders",
-            Preset::Invest => "Invest",
+            Preset::Invest => "IPO & Bids",
         }
     }
 
@@ -190,12 +191,13 @@ impl Preset {
             ],
             Preset::Portfolio => &[
                 PaneId::PortfolioPositions,
+                PaneId::PortfolioMf,
                 PaneId::PortfolioHoldings,
                 PaneId::PortfolioFunds,
             ],
             Preset::Derivatives => &[PaneId::DerivativesChain, PaneId::DerivativesChart],
             Preset::Orders => &[PaneId::OrdersBook, PaneId::OrdersGtt, PaneId::OrdersAlerts],
-            Preset::Invest => &[PaneId::InvestMf, PaneId::InvestBids],
+            Preset::Invest => &[PaneId::InvestBids],
         }
     }
 
@@ -206,7 +208,7 @@ impl Preset {
             Preset::Portfolio => PaneId::PortfolioPositions,
             Preset::Derivatives => PaneId::DerivativesChain,
             Preset::Orders => PaneId::OrdersBook,
-            Preset::Invest => PaneId::InvestMf,
+            Preset::Invest => PaneId::InvestBids,
         }
     }
 }
@@ -354,7 +356,6 @@ mod tests {
             let panes = preset.panes();
             assert!(!panes.is_empty(), "{preset:?} defines no pane");
             assert!(panes.contains(&preset.default_focus()));
-            assert!(panes.len() > 1, "{preset:?} is not a composite");
         }
     }
 

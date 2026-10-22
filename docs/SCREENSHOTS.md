@@ -4,7 +4,7 @@ Full-resolution captures of the Kite terminal UI (`kite`). Select any image to v
 
 Press `1`–`6` inside the TUI to switch workspaces, or `T` to open the theme picker. See the [Terminal UI guide](guide/tui.md) for all keyboard shortcuts and controls.
 
-[Overview](#1-overview) · [Trading](#2-trading) · [Portfolio](#3-portfolio) · [Derivatives](#4-derivatives) · [Orders](#5-orders) · [Invest](#6-invest) · [Themes](#themes)
+[Overview](#1-overview) · [Trading](#2-trading) · [Portfolio](#3-portfolio) · [Option Chain](#4-option-chain) · [Orders](#5-orders) · [IPO & Bids](#6-ipo--bids) · [Themes](#themes)
 
 ---
 
@@ -22,15 +22,15 @@ Real-time watchlist alongside an interactive candlestick chart, 5-level market d
 
 ## 3. Portfolio
 
-Open positions, demat and MTF holdings with sortable columns, and a full equity and commodity margin breakdown.
+Open positions, mutual fund holdings, demat and MTF holdings with sortable columns, and a full equity and commodity margin breakdown.
 
 ![Portfolio workspace](assets/screenshots/portfolio.png)
 
-## 4. Derivatives
+## 4. Option Chain
 
 Live option chain with call/put open interest and expiry selection alongside a chart of the underlying spot instrument.
 
-![Derivatives workspace](assets/screenshots/derivatives.png)
+![Option Chain workspace](assets/screenshots/option-chain.png)
 
 ## 5. Orders
 
@@ -38,11 +38,11 @@ Today's order book, Good Till Triggered (GTT) triggers, and account price alerts
 
 ![Orders workspace](assets/screenshots/orders.png)
 
-## 6. Invest
+## 6. IPO & Bids
 
-Mutual fund holdings alongside open issues and applications across IPOs, government securities, auctions, and corporate actions.
+Open issues and applications across IPOs, government securities, auctions, and corporate actions.
 
-![Invest workspace](assets/screenshots/invest.png)
+![IPO & Bids workspace](assets/screenshots/ipo-bids.png)
 
 ## Themes
 

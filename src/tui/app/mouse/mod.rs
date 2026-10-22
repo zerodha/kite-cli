@@ -265,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn a_bids_section_click_focuses_the_bids_pane() {
+    fn a_bids_section_click_selects_that_section() {
         let issue = |symbol: &str| crate::tui::bids::Instrument {
             symbol: symbol.into(),
             ..Default::default()
@@ -276,7 +276,6 @@ mod tests {
             crate::tui::bids::Section::Government,
             Ok(vec![issue("GS2030"), issue("GS2035")]),
         );
-        app.focus_pane_for_test(PaneId::InvestMf);
         render(&app, W, H);
         let label = region_of(&app, |action| {
             action == ui::HitAction::BidsSection(crate::tui::bids::Section::Government)

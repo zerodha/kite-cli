@@ -41,7 +41,7 @@ impl Jump {
 }
 
 pub const WORKSPACE_SYNTAX: &str =
-    "workspace NAME: Overview, Trading, Portfolio, Derivatives, Orders, Invest";
+    "workspace NAME: Overview, Trading, Portfolio, Option Chain, Orders, IPO & Bids";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Keyword {
@@ -123,7 +123,7 @@ pub const CATALOG: [Keyword; 21] = [
     Keyword {
         word: "mf",
         arg: ArgKind::None,
-        jump: Some(Jump::Pane(PaneId::InvestMf)),
+        jump: Some(Jump::Pane(PaneId::PortfolioMf)),
     },
     Keyword {
         word: "gtt",
@@ -184,9 +184,10 @@ pub const CATALOG: [Keyword; 21] = [
 
 pub fn workspace_matches(query: &str) -> impl Iterator<Item = Preset> + '_ {
     let lower = query.to_ascii_lowercase();
-    Preset::ALL
-        .into_iter()
-        .filter(move |preset| preset.title().to_ascii_lowercase().starts_with(&lower))
+    Preset::ALL.into_iter().filter(move |preset| {
+        preset.title().to_ascii_lowercase().starts_with(&lower)
+            || preset.config_token().starts_with(&lower)
+    })
 }
 
 pub fn keyword_matches(token: &str) -> impl Iterator<Item = Keyword> {
@@ -613,6 +614,21 @@ mod tests {
             workspace_matches("ord").collect::<Vec<_>>(),
             [Preset::Orders]
         );
+        assert_eq!(
+            workspace_matches("ipo").collect::<Vec<_>>(),
+            [Preset::Invest]
+        );
+        assert_eq!(
+            workspace_matches("inv").collect::<Vec<_>>(),
+            [Preset::Invest]
+        );
+        for query in ["opt", "Option Chain", "der", "DERIVATIVES"] {
+            assert_eq!(
+                workspace_matches(query).collect::<Vec<_>>(),
+                [Preset::Derivatives],
+                "{query:?} names the Option Chain workspace"
+            );
+        }
         assert_eq!(workspace_matches("zzz").count(), 0);
     }
 

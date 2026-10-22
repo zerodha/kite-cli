@@ -146,7 +146,7 @@ mod tests {
         );
 
         click(&mut app, W, H, rows.x + 2, rows.y + 3);
-        assert_eq!(selected(&app), Some(3), "the click selected Derivatives");
+        assert_eq!(selected(&app), Some(3), "the click selected Option Chain");
         assert_eq!(app.workspace(), Preset::Overview, "a click only selects");
         scroll(&mut app, W, H, rows.x + 2, rows.y + 3, true);
         assert_eq!(selected(&app), Some(4), "a notch down moves one row");
@@ -171,7 +171,11 @@ mod tests {
             }
             assert!(text.contains("Watch · Chart · Depth · Orders"), "{text}");
             assert!(text.contains("Orders · GTT · Alerts"), "{text}");
-            assert!(text.contains("MF · Bids"), "{text}");
+            assert!(text.contains("Positions · MF · Holdings · Funds"), "{text}");
+            assert!(
+                text.contains("4  Option Chain Chain · Chart"),
+                "the longest title keeps a space before its panes:\n{text}"
+            );
         }
     }
 }

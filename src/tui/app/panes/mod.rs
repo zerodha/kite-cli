@@ -59,7 +59,7 @@ fn book_of(pane: PaneId) -> Option<Book> {
         PaneId::PortfolioPositions | PaneId::OverviewPositions => Some(Book::Positions),
         PaneId::OrdersBook | PaneId::TradingOrders => Some(Book::Orders),
         PaneId::PortfolioHoldings | PaneId::OverviewHoldings => Some(Book::Holdings),
-        PaneId::InvestMf => Some(Book::Mf),
+        PaneId::PortfolioMf => Some(Book::Mf),
         PaneId::OrdersGtt => Some(Book::Gtt),
         PaneId::OrdersAlerts => Some(Book::Alerts),
         _ => None,
@@ -102,7 +102,7 @@ impl App {
                     | PaneId::PortfolioHoldings
                     | PaneId::TradingOrders
                     | PaneId::OrdersBook
-                    | PaneId::InvestMf
+                    | PaneId::PortfolioMf
                     | PaneId::OrdersGtt
                     | PaneId::OrdersAlerts
             )
@@ -170,7 +170,7 @@ impl App {
                     holdings.get(i).map(holding_key)
                 })
             }
-            PaneId::InvestMf => {
+            PaneId::PortfolioMf => {
                 let order = self.mf_display_order();
                 let mf = self.mf_holdings.as_deref().unwrap_or_default();
                 step.apply(&mut self.books.mf, &order, |i| mf.get(i).map(mf_key))
@@ -291,7 +291,7 @@ impl App {
                     .portfolio_holdings
                     .set_sort(app.books.portfolio_holdings.sort().next());
             }
-            PaneId::InvestMf => {
+            PaneId::PortfolioMf => {
                 app.books.mf.set_sort(app.books.mf.sort().next());
             }
             PaneId::OrdersGtt => {
@@ -337,7 +337,7 @@ impl App {
                 (PaneId::PortfolioHoldings, SortTarget::Holdings(mode)) => {
                     apply(&mut app.books.portfolio_holdings, mode, HoldingsSort::next);
                 }
-                (PaneId::InvestMf, SortTarget::Mf(mode)) => {
+                (PaneId::PortfolioMf, SortTarget::Mf(mode)) => {
                     apply(&mut app.books.mf, mode, MfSort::next);
                 }
                 (PaneId::OrdersGtt, SortTarget::Gtt(mode)) => {
@@ -426,11 +426,12 @@ mod tests {
         };
         assert!(matches!(confirm.action, PendingAction::DeleteAlert { .. }));
 
-        app.set_workspace(Preset::Invest);
-        assert_eq!(app.focused_pane(), PaneId::InvestMf);
+        app.set_workspace(Preset::Portfolio);
+        app.focus_pane_for_test(PaneId::PortfolioMf);
         app.on_key(char_key('S'));
         assert_ne!(app.books.mf.sort(), MfSort::default());
-        app.focus_pane_for_test(PaneId::InvestBids);
+        app.set_workspace(Preset::Invest);
+        assert_eq!(app.focused_pane(), PaneId::InvestBids);
         let section = app.bids_pane.section();
         app.on_key(char_key(']'));
         assert_eq!(app.bids_pane.section(), section.cycle(1));

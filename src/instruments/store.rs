@@ -65,6 +65,7 @@ struct SearchKey {
     /// contracts because their compact symbols carry numeric dates.
     month_alias: Option<Box<str>>,
     date_alias: Option<Box<str>>,
+    contract_alias: Option<Box<str>>,
 }
 
 /// Uppercase `text` with every whitespace character removed. See [`SearchKey`].
@@ -79,26 +80,27 @@ const MONTH_NAMES: [&str; 12] = [
     "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
 ];
 
-/// Build the web interface's human-friendly expiry alias once while the master is
-/// loaded. The raw weekly symbol stores a numeric date such as `26908`, but
-/// the web interface also searches the equivalent `8 SEP` name.
-fn derivative_aliases(
+fn derivative_suffix(
     inst: &Instrument,
     compact_symbol: &str,
     compact_name: &str,
-) -> Option<(Box<str>, Box<str>)> {
-    if !matches!(inst.instrument_type.as_str(), "CE" | "PE" | "FUT")
-        || compact_name.is_empty()
-        || !compact_symbol.starts_with(compact_name)
-    {
+) -> Option<String> {
+    if compact_name.is_empty() || !compact_symbol.starts_with(compact_name) {
         return None;
     }
+    match inst.instrument_type.as_str() {
+        "CE" | "PE" => Some(format!("{}{typ}", inst.strike?, typ = inst.instrument_type)),
+        "FUT" => Some("FUT".to_string()),
+        _ => None,
+    }
+}
+
+fn expiry_aliases(
+    inst: &Instrument,
+    compact_name: &str,
+    suffix: &str,
+) -> Option<(Box<str>, Box<str>)> {
     let (month, day) = iso_month_day(inst.expiry.as_deref()?)?;
-    let suffix = match inst.instrument_type.as_str() {
-        "CE" | "PE" => format!("{}{typ}", inst.strike?, typ = inst.instrument_type),
-        "FUT" => "FUT".to_string(),
-        _ => return None,
-    };
     let month = MONTH_NAMES[month as usize - 1];
     Some((
         format!("{compact_name}{month}{suffix}").into_boxed_str(),
@@ -168,9 +170,12 @@ impl InstrumentStore {
         for inst in &instruments {
             let compact_symbol = compact_upper(&inst.tradingsymbol);
             let compact_name = compact_upper(&inst.name);
-            let (month_alias, date_alias) =
-                derivative_aliases(inst, &compact_symbol, &compact_name)
-                    .map_or((None, None), |(month, date)| (Some(month), Some(date)));
+            let suffix = derivative_suffix(inst, &compact_symbol, &compact_name);
+            let (month_alias, date_alias) = suffix
+                .as_deref()
+                .and_then(|suffix| expiry_aliases(inst, &compact_name, suffix))
+                .map_or((None, None), |(month, date)| (Some(month), Some(date)));
+            let contract_alias = suffix.map(|suffix| format!("{compact_name}{suffix}").into());
             let name_upper = if let Some(id) = name_ids.get(compact_name.as_str()) {
                 *id
             } else {
@@ -186,6 +191,7 @@ impl InstrumentStore {
                 name_upper,
                 month_alias,
                 date_alias,
+                contract_alias,
             });
         }
         name_pool.shrink_to_fit();
@@ -211,23 +217,25 @@ impl InstrumentStore {
         &self.name_pool[self.keys[idx].name_upper]
     }
 
-    fn alias_rank(&self, idx: usize, needle: &str) -> Option<MatchRank> {
-        [
-            self.keys[idx].month_alias.as_deref(),
-            self.keys[idx].date_alias.as_deref(),
-        ]
-        .into_iter()
-        .flatten()
-        .filter_map(|alias| {
-            if let Some(start) = alias.find(needle) {
-                Some(MatchRank::new(2, start, needle.len()))
-            } else if needle.len() >= 2 {
-                subsequence_span(needle, alias).map(|(start, span)| MatchRank::new(3, start, span))
-            } else {
-                None
-            }
-        })
-        .min()
+    fn match_rank(&self, idx: usize, needle: &str, spaced_strike: bool) -> Option<MatchRank> {
+        let symbol = self.symbol_key(idx);
+        if symbol == needle {
+            return Some(MatchRank::new(0, 0, needle.len()));
+        }
+        if !spaced_strike && symbol.starts_with(needle) {
+            return Some(MatchRank::new(1, 0, needle.len()));
+        }
+        let key = &self.keys[idx];
+        let (semantic, expiry_bearing) = match key.contract_alias.as_deref() {
+            Some(contract) => (
+                [Some(contract), key.month_alias.as_deref()],
+                [Some(symbol), key.date_alias.as_deref()],
+            ),
+            None => ([Some(symbol), None], [None, None]),
+        };
+        key_rank(2, needle, semantic.into_iter().flatten())
+            .or_else(|| key_rank(4, needle, expiry_bearing.into_iter().flatten()))
+            .or_else(|| key_rank(6, needle, [self.name_key(idx)].into_iter()))
     }
 
     #[must_use]
@@ -258,8 +266,7 @@ impl InstrumentStore {
         }
         let needle = needle.as_str();
 
-        let allow_subsequence = needle.len() >= 2;
-        let needle_span = needle.len();
+        let spaced_strike = spaces_a_number(query);
 
         let mut scored: Vec<(MatchRank, usize, &Instrument)> = self
             .instruments
@@ -271,30 +278,8 @@ impl InstrumentStore {
                     .is_none_or(|ex| inst.exchange.eq_ignore_ascii_case(ex))
             })
             .filter_map(|(idx, inst)| {
-                let symbol = self.symbol_key(idx);
-                if symbol == needle {
-                    return Some((MatchRank::new(0, 0, needle_span), idx, inst));
-                }
-                if symbol.starts_with(needle) {
-                    return Some((MatchRank::new(1, 0, needle_span), idx, inst));
-                }
-                if let Some(start) = symbol.find(needle) {
-                    return Some((MatchRank::new(2, start, needle_span), idx, inst));
-                }
-                if allow_subsequence && let Some((start, span)) = subsequence_span(needle, symbol) {
-                    return Some((MatchRank::new(3, start, span), idx, inst));
-                }
-                let name = self.name_key(idx);
-                if let Some(start) = name.find(needle) {
-                    return Some((MatchRank::new(4, start, needle_span), idx, inst));
-                }
-                if allow_subsequence && let Some((start, span)) = subsequence_span(needle, name) {
-                    return Some((MatchRank::new(5, start, span), idx, inst));
-                }
-                if let Some(rank) = self.alias_rank(idx, needle) {
-                    return Some((rank, idx, inst));
-                }
-                None
+                self.match_rank(idx, needle, spaced_strike)
+                    .map(|rank| (rank, idx, inst))
             })
             .collect();
 
@@ -409,6 +394,27 @@ fn split_query(query: &str) -> (Option<String>, String) {
         }
         _ => (None, compact_upper(query)),
     }
+}
+
+fn key_rank<'a>(tier: u8, needle: &str, keys: impl Iterator<Item = &'a str>) -> Option<MatchRank> {
+    keys.filter_map(|key| {
+        if let Some(start) = key.find(needle) {
+            Some(MatchRank::new(tier, start, needle.len()))
+        } else if needle.len() >= 2 {
+            subsequence_span(needle, key).map(|(start, span)| MatchRank::new(tier + 1, start, span))
+        } else {
+            None
+        }
+    })
+    .min()
+}
+
+fn spaces_a_number(query: &str) -> bool {
+    let words = query.split_whitespace();
+    words.clone().zip(words.skip(1)).any(|(prev, next)| {
+        prev.ends_with(|c: char| c.is_ascii_alphabetic())
+            && next.starts_with(|c: char| c.is_ascii_digit())
+    })
 }
 
 /// Rank instruments by kind so a broad underlying search surfaces the spot
@@ -809,6 +815,240 @@ mod tests {
             store.search("NIFTY2692224000CE", 1)[0].tradingsymbol,
             "NIFTY2692224000CE"
         );
+    }
+
+    fn expiry_master() -> Vec<super::Instrument> {
+        let rows = [
+            ("NIFTY20OCT26000CE", "NIFTY", "CE", 26000.0, "2000-10-27"),
+            ("NIFTY26N0326000CE", "NIFTY", "CE", 26000.0, "2099-11-03"),
+            ("NIFTY26N0326000PE", "NIFTY", "PE", 26000.0, "2099-11-03"),
+            (
+                "BANKNIFTY26OCT26000CE",
+                "BANKNIFTY",
+                "CE",
+                26000.0,
+                "2099-10-27",
+            ),
+            ("NIFTY26OCT26050CE", "NIFTY", "CE", 26050.0, "2099-10-27"),
+            ("NIFTY26OCT26000PE", "NIFTY", "PE", 26000.0, "2099-10-27"),
+            ("NIFTY26OCT26000CE", "NIFTY", "CE", 26000.0, "2099-10-27"),
+        ];
+        rows.into_iter()
+            .enumerate()
+            .map(|(idx, (symbol, name, itype, strike, expiry))| {
+                let mut it = opt(
+                    u32::try_from(idx).unwrap() + 1,
+                    symbol,
+                    itype,
+                    strike,
+                    expiry,
+                );
+                it.name = name.to_string();
+                it
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_strike_query_picks_the_nearest_live_expiry_in_either_master_order() {
+        let mut rows = expiry_master();
+        for _ in 0..2 {
+            let store = InstrumentStore::new(rows.clone());
+            let first = |query: &str| store.search(query, 1)[0].tradingsymbol.clone();
+            assert_eq!(first("NIFTY 26000"), "NIFTY26OCT26000CE");
+            assert_eq!(first("nifty 260"), "NIFTY26OCT26000CE");
+            assert_eq!(first("nifty 26000 p"), "NIFTY26OCT26000PE");
+            assert_eq!(first("NIFTY26N0326000CE"), "NIFTY26N0326000CE");
+            assert_eq!(first("nifty26n03"), "NIFTY26N0326000CE");
+            assert_eq!(first("nifty nov 26000"), "NIFTY26N0326000CE");
+            assert_eq!(first("nifty 3 nov 26000 ce"), "NIFTY26N0326000CE");
+            assert_eq!(first("banknifty 26000"), "BANKNIFTY26OCT26000CE");
+            assert_eq!(first("nif260"), "NIFTY26OCT26000CE");
+
+            let abbreviated: Vec<_> = store
+                .search("nift26000", 0)
+                .into_iter()
+                .map(|inst| inst.tradingsymbol.as_str())
+                .collect();
+            assert_eq!(
+                abbreviated,
+                [
+                    "NIFTY26OCT26000CE",
+                    "NIFTY26OCT26000PE",
+                    "NIFTY26N0326000CE",
+                    "NIFTY26N0326000PE",
+                    "NIFTY20OCT26000CE",
+                    "BANKNIFTY26OCT26000CE",
+                ]
+            );
+
+            let symbols: Vec<_> = store
+                .search("NIFTY 26000", 0)
+                .into_iter()
+                .map(|inst| inst.tradingsymbol.as_str())
+                .collect();
+            assert_eq!(
+                symbols,
+                [
+                    "NIFTY26OCT26000CE",
+                    "NIFTY26OCT26000PE",
+                    "NIFTY26N0326000CE",
+                    "NIFTY26N0326000PE",
+                    "NIFTY20OCT26000CE",
+                    "BANKNIFTY26OCT26000CE",
+                ]
+            );
+            rows.reverse();
+        }
+    }
+
+    #[test]
+    fn a_spaced_strike_query_is_not_taken_for_a_later_year_symbol_prefix() {
+        let mut rows = vec![
+            opt(1, "NIFTY27JUN20000CE", "CE", 20000.0, "2100-06-29"),
+            opt(2, "NIFTY2710520000CE", "CE", 20000.0, "2100-01-05"),
+            opt(3, "NIFTY26OCT27000CE", "CE", 27000.0, "2099-10-27"),
+        ];
+        for _ in 0..2 {
+            let store = InstrumentStore::new(rows.clone());
+            let first = |query: &str| store.search(query, 1)[0].tradingsymbol.clone();
+            assert_eq!(first("nifty 27"), "NIFTY26OCT27000CE");
+            assert_eq!(first("NFO:nifty 27000"), "NIFTY26OCT27000CE");
+            assert_eq!(first("nifty27"), "NIFTY2710520000CE");
+            assert_eq!(first("nifty 2710"), "NIFTY2710520000CE");
+            assert_eq!(first("nifty 27jun"), "NIFTY27JUN20000CE");
+            assert_eq!(first("nifty jun 20000"), "NIFTY27JUN20000CE");
+            assert_eq!(first("nifty 5 jan 20000"), "NIFTY2710520000CE");
+            rows.reverse();
+        }
+    }
+
+    fn contract(token: u32, symbol: &str, strike: f64, expiry: &str) -> super::Instrument {
+        let itype = if symbol.ends_with("FUT") {
+            "FUT"
+        } else {
+            &symbol[symbol.len() - 2..]
+        };
+        let mut it = opt(token, symbol, itype, strike, expiry);
+        it.name = symbol
+            .chars()
+            .take_while(char::is_ascii_alphabetic)
+            .collect();
+        it
+    }
+
+    fn strike_distractors() -> Vec<super::Instrument> {
+        let mut index = inst(256_265, "NSE", "NIFTY 50", "NIFTY 50");
+        index.segment = "INDICES".to_string();
+        vec![
+            index,
+            contract(101, "NIFTY26OCTFUT", 0.0, "2099-10-27"),
+            contract(102, "NIFTY27JANFUT", 0.0, "2100-01-26"),
+            contract(103, "NIFTY26OCT20000CE", 20000.0, "2099-10-27"),
+            contract(104, "NIFTY26OCT26000CE", 26000.0, "2099-10-27"),
+            contract(105, "NIFTY26OCT27000CE", 27000.0, "2099-10-27"),
+            contract(106, "NIFTY27JAN20000CE", 20000.0, "2100-01-26"),
+            contract(107, "BANKNIFTY26OCT22700CE", 22700.0, "2099-10-27"),
+            contract(108, "FINNIFTY26OCT22700CE", 22700.0, "2099-10-27"),
+        ]
+    }
+
+    #[test]
+    fn a_spaced_strike_match_outranks_every_expiry_digit_match() {
+        let mut rows = strike_distractors();
+        rows.push(contract(1, "NIFTY26OCT22700CE", 22700.0, "2099-10-27"));
+        rows.push(contract(2, "NIFTY27JAN22700CE", 22700.0, "2100-01-26"));
+        for _ in 0..2 {
+            let store = InstrumentStore::new(rows.clone());
+            let first = |query: &str| store.search(query, 1)[0].tradingsymbol.clone();
+            assert_eq!(first("nift 27"), "NIFTY26OCT27000CE");
+            assert_eq!(first("nift 227"), "NIFTY26OCT22700CE");
+            assert_eq!(first("nifty 26"), "NIFTY26OCT26000CE");
+            assert_eq!(first("nifty 27"), "NIFTY26OCT27000CE");
+            assert_eq!(first("nifty 22"), "NIFTY26OCT22700CE");
+            assert_eq!(first("nifty 5"), "NIFTY 50");
+
+            assert_eq!(first("NIFTY27JAN22700CE"), "NIFTY27JAN22700CE");
+            assert_eq!(first("NFO:NIFTY27JAN20000CE"), "NIFTY27JAN20000CE");
+            assert!(first("nifty27").starts_with("NIFTY27"));
+            assert!(first("nifty 27jan").starts_with("NIFTY27JAN"));
+            assert_eq!(first("nifty jan 22700"), "NIFTY27JAN22700CE");
+            assert_eq!(first("nifty 26 jan 22700 ce"), "NIFTY27JAN22700CE");
+            assert_eq!(first("nifty 27 oct 22700"), "NIFTY26OCT22700CE");
+            rows.reverse();
+        }
+
+        let mut repro = vec![
+            contract(1, "NIFTY26OCT22700CE", 22700.0, "2099-10-27"),
+            contract(2, "NIFTY27JAN22700CE", 22700.0, "2100-01-26"),
+            contract(3, "NIFTY27JANFUT", 0.0, "2100-01-26"),
+        ];
+        for _ in 0..2 {
+            let store = InstrumentStore::new(repro.clone());
+            assert_eq!(
+                store.search("nift 27", 1)[0].tradingsymbol,
+                "NIFTY26OCT22700CE"
+            );
+            repro.reverse();
+        }
+    }
+
+    #[test]
+    fn the_nearest_expiry_wins_for_every_spelling_of_one_contract() {
+        let symbols = [
+            "NIFTY26OCT22700CE",
+            "NIFTY27JAN22700CE",
+            "NIFTY26O2022700CE",
+        ];
+        let dates = ["2099-10-20", "2099-10-27", "2100-01-26"];
+        let permutations = [
+            [0, 1, 2],
+            [0, 2, 1],
+            [1, 0, 2],
+            [1, 2, 0],
+            [2, 0, 1],
+            [2, 1, 0],
+        ];
+        let underlyings = ["nifty", "nift", "nif", "nfty"];
+        let strikes = ["2", "22", "227", "2270", "22700", "22700 c", "27", "7"];
+        let unique = ["22", "227", "2270", "22700", "22700 c"];
+
+        for permutation in permutations {
+            let mut rows = strike_distractors();
+            for (token, (symbol, date)) in symbols.iter().zip(permutation).enumerate() {
+                rows.push(contract(
+                    u32::try_from(token).unwrap() + 1,
+                    symbol,
+                    22700.0,
+                    dates[date],
+                ));
+            }
+            let nearest = symbols[permutation.iter().position(|&date| date == 0).unwrap()];
+            for _ in 0..2 {
+                let store = InstrumentStore::new(rows.clone());
+                for underlying in underlyings {
+                    for strike in strikes {
+                        let query = format!("{underlying} {strike}");
+                        let expiries: Vec<_> = store
+                            .search(&query, 0)
+                            .into_iter()
+                            .filter(|inst| symbols.contains(&inst.tradingsymbol.as_str()))
+                            .map(|inst| inst.expiry.clone().unwrap())
+                            .collect();
+                        assert_eq!(expiries.len(), 3, "{query} {permutation:?}");
+                        assert!(expiries.is_sorted(), "{query} {permutation:?} {expiries:?}");
+                        if unique.contains(&strike) {
+                            assert_eq!(
+                                store.search(&query, 1)[0].tradingsymbol,
+                                nearest,
+                                "{query} {permutation:?}"
+                            );
+                        }
+                    }
+                }
+                rows.reverse();
+            }
+        }
     }
 
     #[test]

@@ -86,6 +86,7 @@ impl App {
             movers_failed: None,
             positions: None,
             holdings: None,
+            holdings_error: None,
             auctions: None,
             bids: bids::State::default(),
             mf_holdings: None,

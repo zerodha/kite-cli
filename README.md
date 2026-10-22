@@ -12,8 +12,8 @@ The official command-line interface and full-screen terminal workspace for [Zero
 - **Order execution & safety** — Place, modify, and cancel orders, GTT triggers, and price alerts (including alert-to-order baskets). Trading commands preview requests before submission unless `--confirm` is passed.
 - **Portfolio & funds** — Track holdings, net and day positions, real-time profit and loss, and available margins.
 - **Charts & technicals** — Read interactive candlestick charts with volume, multiple intervals, and built-in overlays and indicators (SMA, EMA, Bollinger Bands, RSI, MACD).
-- **Derivatives & option chains** — Inspect live option chains with open interest, expiry selection, and a side-by-side chart of the underlying instrument.
-- **Long-term investing** — View mutual fund holdings and SIPs, open IPOs, government securities, auctions, and corporate actions.
+- **Option chains** — Inspect live option chains with open interest, expiry selection, and a side-by-side chart of the underlying instrument.
+- **IPOs & bids** — Browse open IPOs, government securities, auctions, and corporate actions, then open one on Kite Web to apply. Mutual fund holdings sit in Portfolio, and `kite mf` covers SIPs and fund orders.
 - **Six customizable workspaces** — Switch workspaces with `1`–`6`, resize or maximise panes, search instruments via the command palette, keep local trading notes, and choose from 22 built-in themes with live preview (`T`).
 - **Scriptable CLI** — Query quotes, historical candles, orders, and portfolio data from standard UNIX pipelines with structured `--json` output.
 
@@ -37,25 +37,20 @@ See [Installation](docs/INSTALL.md) for manual archive downloads, custom install
 
 ## Quickstart
 
-**1. Sign in to your Kite account**
-
-```sh
-kite auth login
-```
-
-Enter your Kite user ID, password, and 2FA code when prompted. Run `kite doctor` at any time to verify your setup and active session.
-
-**2. Launch the terminal workspace**
+**1. Launch the terminal workspace**
 
 ```sh
 kite
 ```
 
-Press `?` inside the UI to view keyboard shortcuts, `1`–`6` to switch workspaces, or `T` to change themes.
+If you aren't signed in yet, `kite` opens an interactive sign-in screen for your Kite user ID, password, and 2FA code before loading your workspace. Press `?` inside the UI to view keyboard shortcuts, `1`–`6` to switch workspaces, or `T` to change themes.
 
-**3. Or run CLI commands directly**
+**2. Or use the CLI from your shell**
+
+If you are running CLI commands directly without opening the TUI, sign in from the terminal first (the TUI and CLI share the same session):
 
 ```sh
+kite auth login                # Sign in from the shell (use `kite doctor` to verify)
 kite portfolio holdings        # Holdings and overall P&L
 kite portfolio positions       # Net and day positions
 kite orders list               # Today's order book

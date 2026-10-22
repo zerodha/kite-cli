@@ -1,4 +1,4 @@
-use super::book_state::loaded;
+use super::book_state::{BookState, book_state, loaded};
 use super::headers::{holdings_header_sort, holdings_sort_targets};
 use super::inline_chart::{chart_split, draw_chart_panel};
 use super::table::{
@@ -56,6 +56,10 @@ pub fn draw_holdings_pane(
     chart: &InlineChartInput<'_>,
     hits: &PaneHits<'_>,
 ) {
+    if let (None, Some(error)) = (&app.holdings, &app.holdings_error) {
+        book_state(frame, area, "Holdings", BookState::Failed(error));
+        return;
+    }
     let Some(holdings) = loaded(
         frame,
         area,

@@ -169,7 +169,7 @@ fn hash_pane_rows(app: &App, pane: PaneId, hasher: &mut impl std::hash::Hasher) 
             let gtts = app.gtts.as_deref().unwrap_or_default();
             hash_drawn(hasher, gtts, &app.gtts_display_order(), |gtt| gtt.id);
         }
-        PaneId::InvestMf => {
+        PaneId::PortfolioMf => {
             let funds = app.mf_holdings.as_deref().unwrap_or_default();
             hash_drawn(hasher, funds, &app.mf_display_order(), |fund| {
                 &fund.tradingsymbol

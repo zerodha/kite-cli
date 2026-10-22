@@ -493,13 +493,15 @@ mod divider_drag_tests {
     }
 
     #[test]
-    fn the_orders_and_invest_seams_drag_and_are_remembered() {
+    fn the_orders_and_portfolio_seams_drag_and_are_remembered() {
         use crate::tui::workspace::Preset;
-        let path = scratch("orders-invest");
+        let path = scratch("orders-portfolio");
         for (preset, split) in [
             (Preset::Orders, Split::OrdersRoot),
             (Preset::Orders, Split::OrdersRight),
-            (Preset::Invest, Split::InvestRoot),
+            (Preset::Portfolio, Split::PortfolioRoot),
+            (Preset::Portfolio, Split::PortfolioLeft),
+            (Preset::Portfolio, Split::PortfolioRight),
         ] {
             let mut app = test_app();
             app.settings_path = Some(path.clone());

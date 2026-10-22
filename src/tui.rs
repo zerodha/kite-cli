@@ -169,22 +169,6 @@ fn spawn_session_tasks(
         settings.poll_intervals(),
         app.alert_fetch_requests.clone(),
     ));
-    tasks.push(data::spawn_refresh_positions(
-        client.clone(),
-        events_tx.clone(),
-    ));
-    tasks.push(data::spawn_refresh_orders(
-        client.clone(),
-        events_tx.clone(),
-    ));
-    tasks.push(data::spawn_refresh_holdings(
-        client.clone(),
-        events_tx.clone(),
-    ));
-    tasks.push(data::spawn_refresh_auctions(
-        client.clone(),
-        events_tx.clone(),
-    ));
     for section in bids::Section::ALL {
         if section != bids::Section::Auctions {
             tasks.push(bids::spawn_refresh_instruments(
@@ -198,19 +182,7 @@ fn spawn_session_tasks(
         client.clone(),
         events_tx.clone(),
     ));
-    tasks.push(data::spawn_refresh_margins(
-        client.clone(),
-        events_tx.clone(),
-    ));
-    tasks.push(data::spawn_refresh_profile(
-        client.clone(),
-        events_tx.clone(),
-    ));
-    tasks.push(data::spawn_refresh_alerts(
-        client,
-        events_tx.clone(),
-        app.alert_fetch_requests.clone(),
-    ));
+    tasks.push(data::spawn_refresh_profile(client, events_tx.clone()));
     tasks.push(data::spawn_load_instruments(app.uuid.clone(), events_tx));
 
     Ok(tasks)

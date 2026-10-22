@@ -791,8 +791,9 @@ pub fn spawn_cancel_orders(
 mod tests {
     use super::test_models::{alerts_get_fixture, alerts_history_fixture};
     use super::{
-        Alert, AlertTrigger, DataEvent, KiteConnect, MfHolding, api_err, fund_display_name,
-        mf_totals, place_with_amo_fallback,
+        Alert, AlertTrigger, Arc, AtomicU64, DataEvent, Duration, KiteConnect, MfHolding,
+        PollIntervals, api_err, fund_display_name, mf_totals, place_with_amo_fallback,
+        spawn_pollers,
     };
     use crate::tui::event::AppEvent;
     use httpmock::Method::{DELETE, GET, POST, PUT};
@@ -1450,6 +1451,50 @@ mod tests {
 
     pub(super) fn fixture_data(fixture: &str) -> Value {
         super::test_models::fixture(fixture, "/data")
+    }
+
+    #[tokio::test]
+    async fn pollers_fetch_once_as_soon_as_they_start() {
+        let server = MockServer::start_async().await;
+        let mut mocks = Vec::new();
+        for path in [
+            "/orders",
+            "/portfolio/positions",
+            "/portfolio/holdings",
+            "/portfolio/holdings/auctions",
+            "/user/margins",
+            "/alerts",
+        ] {
+            mocks.push(reply(&server, GET, path, json!([])).await);
+        }
+        let hour = Duration::from_secs(3600);
+        let intervals = PollIntervals {
+            orders: hour,
+            positions: hour,
+            holdings: hour,
+            margins: hour,
+            gtt: hour,
+            alerts: hour,
+        };
+        let (tx, mut rx) = mpsc::channel(16);
+        let pollers = spawn_pollers(
+            connect_client(&server),
+            tx,
+            intervals,
+            Arc::new(AtomicU64::new(0)),
+        );
+        for _ in 0..pollers.len() {
+            tokio::time::timeout(Duration::from_secs(5), rx.recv())
+                .await
+                .expect("each poller fetches without waiting an interval")
+                .expect("event");
+        }
+        for poller in pollers {
+            poller.abort();
+        }
+        for mock in mocks {
+            mock.assert_calls_async(1).await;
+        }
     }
 
     #[tokio::test]

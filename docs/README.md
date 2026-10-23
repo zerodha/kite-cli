@@ -20,7 +20,7 @@ New users should start with [Installation](INSTALL.md) and [Getting started](gui
 
 | Document | Description |
 | :--- | :--- |
-| [`zerodha-kiteconnect`](../crates/kiteconnect/README.md) | Standalone Rust client library for the Kite Connect v3 REST and WebSocket API |
+| [`kiteconnect`](https://github.com/zerodha/kiteconnect-rs) | Standalone Rust client library for the Kite Connect v3 REST and WebSocket API |
 | [Contributing](../CONTRIBUTING.md) | Build `kite` from source, run the test suite, and contribute changes |
 
 [Back to main README](../README.md)

@@ -30,10 +30,6 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
-      - name: Check the zerodha-kiteconnect crate on its minimum Rust (rust-version)
-        run: |
-          rustup toolchain install 1.92.0 --profile minimal
-          cargo +1.92.0 check -p zerodha-kiteconnect --all-targets --locked
       - name: Test release tooling and source checks
         run: scripts/test-release-tools.sh
   native-platforms:

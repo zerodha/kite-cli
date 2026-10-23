@@ -48,7 +48,6 @@ scripts/test-release-tools.sh
 ## Code layout
 
 ```text
-crates/kiteconnect/   Kite Connect API client crate (REST, typed responses, ticker)
 src/main.rs           binary entrypoint
 src/cli.rs            clap command tree and help text
 src/commands/         one handler module per Kite noun
@@ -62,7 +61,7 @@ tests/                integration tests
 scripts/              repository checks and the CLI reference generator
 ```
 
-The `zerodha-kiteconnect` package is independent of the CLI. It contains the public Kite Connect API client.
+The Kite Connect API client is the [`kiteconnect`](https://github.com/zerodha/kiteconnect-rs) crate. Change it in that repository.
 Keep CLI-only routes in `src/app_api/` or the TUI module that uses them.
 
 API methods return `Call<T>`. Await a call for typed data, or use `.raw()` for JSON.
@@ -83,5 +82,3 @@ Keep numeric table cells complete, or hide their column when space is insufficie
 Release automation uses pinned `rlsr` through `.github/workflows/release.yml`.
 It builds target archives and a shared `checksums.txt` file.
 The release tag must match the CLI version and a dated section in `CHANGELOG.md`.
-The client library has its own version in `crates/kiteconnect/Cargo.toml`.
-Publish the library separately from CLI binary releases.

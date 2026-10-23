@@ -1482,6 +1482,7 @@ dependencies = [
  "dirs",
  "futures-util",
  "httpmock",
+ "kiteconnect",
  "proptest",
  "ratatui",
  "reqwest",
@@ -1490,7 +1491,26 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
- "zerodha-kiteconnect",
+]
+
+[[package]]
+name = "kiteconnect"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "341ad7affd038f176264e2421d8d6672f735c040ed791fc940d838f220b01ef6"
+dependencies = [
+ "chrono",
+ "csv",
+ "futures-util",
+ "http",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-tungstenite",
+ "url",
 ]
 
 [[package]]
@@ -3670,26 +3690,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "zerodha-kiteconnect"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "csv",
- "futures-util",
- "http",
- "httpmock",
- "proptest",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.20",
- "tokio",
- "tokio-tungstenite",
- "url",
 ]
 
 [[package]]

@@ -74,7 +74,7 @@ Pass `--json` to any command for machine-readable output in scripts and pipeline
 
 ## Rust Client & Development
 
-This repository also contains [`zerodha-kiteconnect`](crates/kiteconnect/README.md), a standalone typed Rust client for the [Kite Connect v3 REST and WebSocket API](https://kite.trade/docs/connect/v3/).
+The CLI uses [`kiteconnect`](https://github.com/zerodha/kiteconnect-rs), a standalone typed Rust client for the [Kite Connect v3 REST and WebSocket API](https://kite.trade/docs/connect/v3/).
 
 To build `kite` from source, run the test suite, or contribute changes, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

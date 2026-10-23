@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-10-23
+
+### Changed
+
+- The Kite Connect client is now the [`kiteconnect`](https://crates.io/crates/kiteconnect) 1.0 crate from [zerodha/kiteconnect-rs](https://github.com/zerodha/kiteconnect-rs), with its own release cycle.
+
 ## [0.1.0] - 2026-10-22
 
 First public release.

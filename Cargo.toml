@@ -17,7 +17,7 @@ proptest = "1.11.0"
 
 [package]
 name = "kite"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.99"
 publish = false

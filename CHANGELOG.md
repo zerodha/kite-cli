@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-10-27
+
+### Fixed
+
+- The Overview movers panel loads again. The screener service now accepts only form-encoded request bodies and rejected the JSON body with HTTP 415.
+
 ## [0.2.0] - 2026-10-23
 
 ### Changed

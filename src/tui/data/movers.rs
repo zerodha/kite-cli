@@ -533,6 +533,45 @@ mod tests {
         }
     }
 
+    /// The screener rejects any body that is not form-encoded with a 415, so
+    /// the mock only answers a form request that carries the universe tag.
+    #[tokio::test]
+    async fn movers_query_the_screener_with_a_form_body() {
+        let server = MockServer::start_async().await;
+        reply(&server, GET, "/screener/presets", json!({ "presets": [] })).await;
+        let body = json!({ "status": "success", "data": { "results": [row("INFY")] } });
+        let instruments = server
+            .mock_async(|when, then| {
+                when.method(POST)
+                    .path("/screener/instruments")
+                    .header("content-type", "application/x-www-form-urlencoded")
+                    .form_urlencoded_tuple("tags", "Nifty 50");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(body.to_string());
+            })
+            .await;
+        let (tx, mut rx) = mpsc::channel(1);
+
+        spawn_refresh_movers(
+            connect_client(&server),
+            tx,
+            MoversUniverse::Nifty50,
+            Arc::default(),
+        )
+        .await
+        .expect("movers task");
+
+        match next_event(&mut rx).await {
+            DataEvent::Movers {
+                universe: MoversUniverse::Nifty50,
+                result: Ok(movers),
+            } => assert_eq!(movers.gainers[0].tradingsymbol, "INFY"),
+            other => panic!("unexpected {other:?}"),
+        }
+        instruments.assert_calls_async(2).await;
+    }
+
     #[tokio::test]
     async fn a_drawn_row_without_a_price_fails_the_movers_event() {
         let server = MockServer::start_async().await;

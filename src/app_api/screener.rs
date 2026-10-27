@@ -2,7 +2,7 @@ use anyhow::Result;
 use kiteconnect::KiteConnect;
 use kiteconnect::Request;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 /// The row field the movers panel both ranks and displays. Also the `order_by`
 /// the gainers/losers presets sort on, see [`mover_presets`].
@@ -57,26 +57,23 @@ pub struct ScreenerQuery {
     pub tags: Vec<String>,
 }
 
-/// JSON body for `POST /screener/instruments`.
+/// Form body for `POST /screener/instruments`. The service rejects any other
+/// content type, JSON included, with a 415.
 ///
-/// `tags` is **omitted entirely** when no universe is selected rather than sent
-/// as `[]`, because the service reads an absent `tags` as "whole market" and an
-/// empty array is an untested third state.
+/// `tags` is a repeated key, one pair per universe, and is **omitted entirely**
+/// when no universe is selected: the service reads an absent `tags` as "whole
+/// market".
 #[must_use]
-pub fn instruments_body(query: &ScreenerQuery) -> Value {
-    let mut body = json!({
-        "per_page": query.per_page,
-        "page": query.page,
-        "query": query.query,
-        "order_by": query.order_by,
-        "order": query.order,
-    });
-    if !query.tags.is_empty()
-        && let Some(object) = body.as_object_mut()
-    {
-        object.insert("tags".to_string(), json!(query.tags));
-    }
-    body
+pub fn instruments_form(query: &ScreenerQuery) -> Vec<(&'static str, String)> {
+    let mut form = vec![
+        ("per_page", query.per_page.to_string()),
+        ("page", query.page.to_string()),
+        ("query", query.query.clone()),
+        ("order_by", query.order_by.clone()),
+        ("order", query.order.clone()),
+    ];
+    form.extend(query.tags.iter().map(|tag| ("tags", tag.clone())));
+    form
 }
 
 /// One entry of `GET /screener/presets`' `data.presets[]`.
@@ -170,13 +167,13 @@ pub async fn presets(client: &KiteConnect) -> Result<Value> {
     Ok(client.call(Request::get("/screener/presets")).raw().await?)
 }
 
-/// Run a screener query. Read-only despite the `POST`; body is JSON.
+/// Run a screener query. Read-only despite the `POST`; body is form-encoded.
 ///
 /// # Errors
 /// Returns an error if the query fails or the response cannot be decoded.
 pub async fn instruments(client: &KiteConnect, query: &ScreenerQuery) -> Result<Value> {
     Ok(client
-        .call(Request::post("/screener/instruments").json(instruments_body(query)))
+        .call(Request::post("/screener/instruments").form(instruments_form(query)))
         .raw()
         .await?)
 }
@@ -184,6 +181,7 @@ pub async fn instruments(client: &KiteConnect, query: &ScreenerQuery) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     fn nifty500_gainers() -> ScreenerQuery {
         ScreenerQuery {
@@ -196,33 +194,42 @@ mod tests {
         }
     }
 
-    /// The exact body the default movers view sends, field by field. This is the
-    /// wire contract: `query` is a flat string (not a structured filter object),
-    /// `per_page`/`page` are numbers (not strings), and the whole thing is JSON.
+    /// The exact form the default movers view sends, pair by pair. This is the
+    /// wire contract: `query` is a flat string (not a structured filter object)
+    /// and each universe is its own `tags` pair.
     #[test]
-    fn instruments_body_matches_the_wire_contract() {
-        let body = instruments_body(&nifty500_gainers());
-        assert_eq!(body["per_page"], json!(25));
-        assert_eq!(body["page"], json!(1));
-        assert_eq!(body["query"], json!("change_percent>0"));
-        assert_eq!(body["order_by"], json!("change_percent"));
-        assert_eq!(body["order"], json!("desc"));
-        assert_eq!(body["tags"], json!(["Nifty 500"]));
+    fn instruments_form_matches_the_wire_contract() {
+        let form = instruments_form(&ScreenerQuery {
+            tags: vec!["Nifty 50".to_string(), "Nifty 500".to_string()],
+            ..nifty500_gainers()
+        });
+        assert_eq!(
+            form,
+            [
+                ("per_page", "25".to_string()),
+                ("page", "1".to_string()),
+                ("query", "change_percent>0".to_string()),
+                ("order_by", "change_percent".to_string()),
+                ("order", "desc".to_string()),
+                ("tags", "Nifty 50".to_string()),
+                ("tags", "Nifty 500".to_string()),
+            ]
+        );
     }
 
-    /// The whole-market query omits `tags` rather than sending `[]`: an absent
-    /// `tags` is the shape the service documents as "no universe filter".
+    /// The whole-market query omits `tags` rather than sending an empty value:
+    /// an absent `tags` is the shape the service documents as "no universe
+    /// filter".
     #[test]
-    fn instruments_body_omits_tags_when_unconstrained() {
-        let body = instruments_body(&ScreenerQuery {
+    fn instruments_form_omits_tags_when_unconstrained() {
+        let form = instruments_form(&ScreenerQuery {
             tags: Vec::new(),
             ..nifty500_gainers()
         });
         assert!(
-            body.get("tags").is_none(),
-            "unconstrained query must omit tags entirely, got {body}"
+            form.iter().all(|(key, _)| *key != "tags"),
+            "unconstrained query must omit tags entirely, got {form:?}"
         );
-        assert_eq!(body["query"], json!("change_percent>0"));
     }
 
     /// The `data.presets[]` shape from the live `GET /screener/presets`,

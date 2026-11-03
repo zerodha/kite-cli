@@ -4,25 +4,32 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ] (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ rust-overlay.overlays.default ];
+        };
+        toolchain = (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override (old: {
+          extensions = old.extensions ++ [ "rust-src" ];
+        });
       in
       {
         devShells.default = pkgs.mkShell {
           name = "kite-cli";
 
           packages = with pkgs; [
-            cargo
+            toolchain
             cargo-watch
-            clippy
             just
             rust-analyzer
-            rustc
-            rustfmt
           ];
 
           shellHook = ''

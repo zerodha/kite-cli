@@ -10,6 +10,15 @@ git submodule update --init --recursive
 
 `rustup` installs the Rust version pinned in `rust-toolchain.toml` on the first build.
 
+With Nix, run `nix develop`, or run `direnv allow` once to load the shell automatically.
+The shell uses the same Rust pin through `rust-overlay` and includes rustfmt, Clippy,
+Rust sources, rust-analyzer, cargo-watch, and just. Cargo downloads and build outputs
+stay in the ignored `.cargo-home/` and `target/` directories.
+
+Run `nix flake update` to refresh the pinned Nix inputs. To update Rust, also set an
+explicit stable version in `rust-toolchain.toml`; Nix and rustup both read this file.
+Run `nix flake check` and the checks below before sharing an update.
+
 ## Tasks
 
 The `justfile` has the common tasks:

@@ -1,4 +1,6 @@
 /target
+/.cargo-home/
+/.direnv/
 /dist
 /demo/
 /.claude/worktrees

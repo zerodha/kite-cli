@@ -26,7 +26,7 @@ Start with [Getting started](getting-started.md) to install `kite`, sign in to y
 | :--- | :--- |
 | [Terminal UI (TUI)](tui.md) | Workspaces (`1`–`6`), watchlists, order/GTT tickets, ATO baskets, charts, local notes, keybindings, and `tui.json` themes |
 | [Scripting](scripting.md) | `--json` output, exit codes, stdout/stderr separation, piping, raw API calls (`kite request`), and command aliases |
-| [Agent skills](../../skills/README.md) | Installing the official `kite` skill so AI coding agents use the CLI safely |
+| [Using with AI agents](agents.md) | One-prompt agent setup, installing the `kite` skill, read-only portfolio/market workflows, and credential safety |
 
 ## Command Reference
 

@@ -61,6 +61,16 @@ kite market quote NSE:INFY     # Live quote and market depth
 
 Pass `--json` to any command for machine-readable output in scripts and pipelines, or `--help` to inspect available flags. See [Orders](docs/guide/orders.md) and [Scripting](docs/guide/scripting.md) for examples.
 
+**3. Use with AI coding agents (Claude Code, Codex, Cursor)**
+
+Give this prompt to your agent to install `kite` and set up the official agent skill:
+
+```text
+Fetch and follow the instructions at https://raw.githubusercontent.com/zerodha/kite-cli/main/skills/prompt.md to set me up with Kite CLI.
+```
+
+Then sign in from your own terminal with `kite auth login`. See [Using with AI agents](docs/guide/agents.md) for portfolio analysis, market research workflows, and safety details.
+
 ## Documentation
 
 | Guide | Description |
@@ -68,6 +78,7 @@ Pass `--json` to any command for machine-readable output in scripts and pipeline
 | [Getting started](docs/guide/getting-started.md) | First-time setup, login, session checks, and basic workflows |
 | [Terminal UI guide](docs/guide/tui.md) | Workspaces, watchlists, order tickets, charts, and keybindings |
 | [User guide](docs/guide/README.md) | Detailed guides for orders, portfolio, market data, alerts, and mutual funds |
+| [Using with AI agents](docs/guide/agents.md) | One-prompt agent setup, read-only analysis workflows, and credential safety |
 | [CLI reference](docs/CLI_REFERENCE.md) | Complete reference for all commands, subcommands, and flags |
 | [Screenshots](docs/SCREENSHOTS.md) | Full-resolution captures of all six workspaces and the theme picker |
 | [Troubleshooting](docs/guide/troubleshooting.md) | Solutions for session errors, rate limits, and terminal display issues |

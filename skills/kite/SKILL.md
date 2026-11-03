@@ -1,6 +1,6 @@
 ---
 name: kite
-description: Use the `kite` CLI to read a Zerodha Kite account and market data (holdings, positions, orders, trades, margins, quotes, historical candles, instrument search, GTTs, price alerts, mutual funds) and to prepare orders as dry runs. Use when the user asks about their Zerodha or Kite portfolio, P&L, orders, a stock price, an option chain contract, or wants to script Kite data with `--json` and jq.
+description: Use the `kite` CLI to inspect a Zerodha Kite account and market data (holdings, positions, order book, trades, margins, quotes, historical candles, instrument search, GTTs, price alerts, mutual funds). Use when the user asks about their Zerodha or Kite portfolio, P&L, mutual funds, a stock price, historical data, or wants to script Kite data with `--json` and jq.
 ---
 
 # kite CLI

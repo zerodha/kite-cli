@@ -3,6 +3,12 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- `kite alerts modify --rhs` on a constant alert now defaults the right-hand attribute to `LastTradedPrice`, as the help says. It previously sent an empty attribute.
+
 ## [0.2.1] - 2026-10-27
 
 ### Fixed

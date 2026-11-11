@@ -24,7 +24,11 @@ struct Fit {
 }
 
 impl Fit {
-    fn for_width(width: u16, [bid_qty_w, bid_w, ask_w, ask_qty_w]: [usize; 4]) -> Self {
+    fn for_width(
+        width: u16,
+        [bid_qty_w, bid_w, ask_w, ask_qty_w]: [usize; 4],
+        [lower_w, upper_w]: [usize; 2],
+    ) -> Self {
         let width = usize::from(width);
         let prices = bid_w + DEPTH_GAP.len() + ask_w;
         if width < prices {
@@ -39,9 +43,16 @@ impl Fit {
             };
         }
         let with_qty = prices + bid_qty_w + ask_qty_w + 2;
+        let qty = width >= with_qty;
+        let (labelled_bid_w, labelled_ask_w) = (bid_w.max(lower_w), ask_w.max(upper_w));
+        let (bid_w, ask_w) = if !qty && labelled_bid_w + DEPTH_GAP.len() + labelled_ask_w <= width {
+            (labelled_bid_w, labelled_ask_w)
+        } else {
+            (bid_w, ask_w)
+        };
         Self {
             bars: width >= with_qty + 2 * DEPTH_BAR_W,
-            qty: width >= with_qty,
+            qty,
             bid_w,
             ask_w,
             bid_qty_w,
@@ -96,12 +107,22 @@ fn whole_or_marker(text: &str, width: usize) -> &str {
     }
 }
 
-fn price_width(prices: &[kiteconnect::ticker::DepthEntry]) -> usize {
+fn price_width(prices: &[kiteconnect::ticker::DepthEntry], circuit: Option<f64>) -> usize {
     prices
         .iter()
         .take(5)
-        .map(|entry| format::price(entry.price).chars().count())
+        .map(|entry| entry.price)
+        .chain(circuit)
+        .map(|price| format::price(price).chars().count())
         .fold(DEPTH_PRICE_W, usize::max)
+}
+
+fn lower_circuit_label(lower: &str) -> String {
+    format!("LC {lower}")
+}
+
+fn upper_circuit_label(upper: &str) -> String {
+    format!("{upper} UC")
 }
 
 fn qty_width(levels: &[kiteconnect::ticker::DepthEntry], total: Option<&str>) -> usize {
@@ -182,14 +203,22 @@ pub(super) fn draw_depth(
         .buy_quantity
         .zip(tick.sell_quantity)
         .map(|(buy, sell)| (format::compact_qty(buy), format::compact_qty(sell)));
+    let circuit_text = circuit.map(|(lower, upper)| (format::price(lower), format::price(upper)));
+    let labelled = circuit_text.as_ref().map_or([0, 0], |(lower, upper)| {
+        [
+            lower_circuit_label(lower).chars().count(),
+            upper_circuit_label(upper).chars().count(),
+        ]
+    });
     let fit = Fit::for_width(
         area.width,
         [
             qty_width(&depth.buy, totals.as_ref().map(|(buy, _)| buy.as_str())),
-            price_width(&depth.buy),
-            price_width(&depth.sell),
+            price_width(&depth.buy, circuit.map(|(lower, _)| lower)),
+            price_width(&depth.sell, circuit.map(|(_, upper)| upper)),
             qty_width(&depth.sell, totals.as_ref().map(|(_, sell)| sell.as_str())),
         ],
+        labelled,
     );
     let mut lines: Vec<Line> = Vec::with_capacity(8);
     lines.push(fit.line([
@@ -243,15 +272,14 @@ pub(super) fn draw_depth(
         ));
     }
 
-    if let Some((lower, upper)) = circuit {
-        let (lower, upper) = (format::price(lower), format::price(upper));
-        let (bid_cell, ask_cell) = if fit.qty {
-            (fit.bid_cell(&lower), fit.ask_cell(&upper))
+    if let Some((lower, upper)) = circuit_text {
+        let (lower_label, upper_label) = (lower_circuit_label(&lower), upper_circuit_label(&upper));
+        let labels_fit =
+            lower_label.chars().count() <= fit.bid_w && upper_label.chars().count() <= fit.ask_w;
+        let (bid_cell, ask_cell) = if !fit.qty && labels_fit {
+            (fit.bid_cell(&lower_label), fit.ask_cell(&upper_label))
         } else {
-            (
-                fit.bid_cell(&format!("LC {lower}")),
-                fit.ask_cell(&format!("{upper} UC")),
-            )
+            (fit.bid_cell(&lower), fit.ask_cell(&upper))
         };
         lines.push(fit.line([
             Span::raw(" ".repeat(DEPTH_BAR_W)),
@@ -524,5 +552,43 @@ mod depth_render_tests {
         let row = circuit_row(20);
         assert!(row.contains("LC 135.00"), "{row:?}");
         assert!(row.contains("165.00 UC"), "{row:?}");
+    }
+
+    fn mrf_circuit_row(width: u16) -> String {
+        let mut depth = MarketDepth::default();
+        depth.buy = vec![depth_entry(4, 126_015.0, 1)];
+        depth.sell = vec![depth_entry(3, 126_060.0, 1)];
+        let mut tick = Tick::default();
+        tick.buy_quantity = Some(1_438);
+        tick.sell_quantity = Some(1_783);
+        let mut terminal = Terminal::new(TestBackend::new(width, 9)).unwrap();
+        terminal
+            .draw(|frame| {
+                draw_depth(
+                    frame,
+                    frame.area(),
+                    &depth,
+                    &tick,
+                    Some((113_436.0, 138_644.0)),
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        (0..width).map(|x| buffer[(x, 8)].symbol()).collect()
+    }
+
+    #[test]
+    fn six_digit_circuit_limits_keep_their_labels_when_there_is_room() {
+        let row = mrf_circuit_row(33);
+        assert!(row.contains("LC 1,13,436.00"), "{row:?}");
+        assert!(row.contains("1,38,644.00 UC"), "{row:?}");
+    }
+
+    #[test]
+    fn six_digit_circuit_limits_draw_whole_without_their_labels() {
+        let row = mrf_circuit_row(26);
+        assert!(row.contains("1,13,436.00"), "{row:?}");
+        assert!(row.contains("1,38,644.00"), "{row:?}");
+        assert!(!row.contains('…'), "{row:?}");
     }
 }

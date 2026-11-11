@@ -49,6 +49,26 @@ pub(super) const ORD_LABELS: [(&str, bool); 11] = [
 ];
 
 const ORD_QTY: usize = 7;
+const ORD_PRICE: usize = 8;
+const ORD_TRIGGER: usize = 9;
+
+fn order_price(order: &Order) -> String {
+    if order.average_price > 0.0 {
+        format::price(order.average_price)
+    } else if order.price > 0.0 {
+        format::price(order.price)
+    } else {
+        "MKT".to_string()
+    }
+}
+
+fn order_trigger(order: &Order) -> String {
+    if order.trigger_price > 0.0 {
+        format::price(order.trigger_price)
+    } else {
+        ".".to_string()
+    }
+}
 
 fn quantity_pair(order: &Order) -> String {
     format!("{}/{}", order.filled_quantity, order.quantity)
@@ -77,15 +97,6 @@ fn order_row(
         _ if crate::tui::data::order_is_open(order) => Style::default().fg(format::warning()),
         _ => Style::default(),
     };
-    let price = || {
-        if order.average_price > 0.0 {
-            format::price(order.average_price)
-        } else if order.price > 0.0 {
-            format::price(order.price)
-        } else {
-            "MKT".to_string()
-        }
-    };
     fit_row(
         fit,
         &[
@@ -112,14 +123,8 @@ fn order_row(
             },
             &|| Cell::from(Span::styled(order.product.clone(), format::dim())),
             &|| right(quantity_pair(order)),
-            &|| right(price()),
-            &|| {
-                right(if order.trigger_price > 0.0 {
-                    format::price(order.trigger_price)
-                } else {
-                    ".".to_string()
-                })
-            },
+            &|| right(order_price(order)),
+            &|| right(order_trigger(order)),
             &|| Cell::from(Span::styled(order.status.clone(), status_style)),
         ],
     )
@@ -147,11 +152,21 @@ pub fn draw_orders_pane(
     let (content_area, chart_area) = (split.table, split.chart);
     let targets = orders_sort_targets();
     let mut cols = columns::sort_floors(&ORD_COLS, &ORD_LABELS, &targets.map(|(idx, _)| idx));
-    cols[ORD_QTY].width = cols[ORD_QTY].width.max(columns::widest(
-        orders
-            .iter()
-            .map(|order| format::display_width(&quantity_pair(order))),
-    ));
+    columns::floor_to_cells(
+        &mut cols,
+        ORD_QTY,
+        orders.iter().map(|order| quantity_pair(order).len()),
+    );
+    columns::floor_to_cells(
+        &mut cols,
+        ORD_PRICE,
+        orders.iter().map(|order| order_price(order).len()),
+    );
+    columns::floor_to_cells(
+        &mut cols,
+        ORD_TRIGGER,
+        orders.iter().map(|order| order_trigger(order).len()),
+    );
     let fit = columns::fit_columns(table_budget(content_area.width), 1, &cols);
     let layout = columns::spread(
         &fit,
@@ -266,6 +281,39 @@ mod orders_render_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_six_digit_trigger_price_is_drawn_whole() {
+        let mut order: Order = crate::tui::data::test_models::order();
+        order.order_id = "251009000000002".into();
+        order.order_timestamp = "2026-11-11T10:15:00".parse().unwrap();
+        order.status = "TRIGGER PENDING".into();
+        order.exchange = "NSE".into();
+        order.tradingsymbol = "MRF".into();
+        order.instrument_token = 1;
+        order.transaction_type = "SELL".into();
+        order.order_type = "SL".into();
+        order.product = "CNC".into();
+        order.price = 126_000.0;
+        order.average_price = 0.0;
+        order.trigger_price = 126_040.0;
+        order.quantity = 1.0;
+        order.filled_quantity = 0.0;
+        let app = orders_app(vec![order]);
+        let (w, h) = (160, 24);
+        let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
+        terminal
+            .draw(|frame| crate::tui::ui::draw(frame, &app))
+            .unwrap();
+        let buffer = terminal.backend().buffer().clone();
+        let text: Vec<String> = (0..h)
+            .map(|y| (0..w).map(|x| buffer[(x, y)].symbol()).collect())
+            .collect();
+        let text = text.join("\n");
+        assert!(text.contains("TRIGGER"), "{text}");
+        assert!(text.contains("1,26,000.00"), "{text}");
+        assert!(text.contains("1,26,040.00"), "{text}");
     }
 
     #[test]

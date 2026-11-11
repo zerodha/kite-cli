@@ -364,13 +364,7 @@ fn help_bindings(pane: PaneId) -> Vec<HelpSection> {
         ],
         PaneId::TradingChart | PaneId::DerivativesChart => vec![
             group("Reading it", chart_bindings_without_toggle()),
-            group(
-                "Instrument",
-                vec![b(
-                    "source",
-                    "a chart leaf draws what its source pane names, Trading's watch row, or the Option Chain's underlying spot, so it has no row and no trade key of its own",
-                )],
-            ),
+            group("Instrument", chart_leaf_source_bindings(pane)),
             seam_group(),
         ],
         PaneId::TradingDepth => vec![
@@ -447,6 +441,20 @@ fn chart_bindings() -> Vec<Binding> {
     ]
 }
 
+fn chart_leaf_source_bindings(pane: PaneId) -> Vec<Binding> {
+    let mut bindings = vec![b(
+        "source",
+        "a chart leaf draws what its source pane names, Trading's watch row, or the Option Chain's underlying spot, so it has no row and no trade key of its own",
+    )];
+    if pane == PaneId::TradingChart {
+        bindings.push(b(
+            "/",
+            "chart any instrument without adding it to a watchlist; moving the watch cursor follows the list again",
+        ));
+    }
+    bindings
+}
+
 fn chart_bindings_without_toggle() -> Vec<Binding> {
     let mut bindings = chart_bindings();
     bindings.remove(0);
@@ -458,8 +466,8 @@ fn positions_chart_bindings() -> Vec<Binding> {
     bindings.insert(
         0,
         b(
-            "Ctrl-K",
-            "Toggle chart opens the selected row's chart inside this pane; Esc closes it",
+            "Enter",
+            "open the selected row's chart inside this pane, which takes the body while it is open; Enter or Esc closes it and puts the workspace back",
         ),
     );
     bindings
@@ -597,6 +605,7 @@ mod tests {
             search(SearchPurpose::ChainUnderlying),
             search(SearchPurpose::NewAlert),
             search(SearchPurpose::AtoBasketItem),
+            search(SearchPurpose::OpenChart),
             Modal::Palette(PaletteState::for_test()),
             Modal::ThemePicker(ThemePickerState::default()),
             Modal::WorkspacePicker(crate::tui::app::WorkspacePickerState { selected: 0 }),

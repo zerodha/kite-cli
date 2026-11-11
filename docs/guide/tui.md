@@ -154,10 +154,11 @@ The default workspace at session start. It is strictly read-only.
 
 ### Portfolio: Positions, MF, Holdings, Funds
 
-**Positions** displays your open and closed positions for the day: product, symbol, net quantity, average price, live LTP, live P&L, and day change `%`. A summary header above the table shows total P&L (Kite's `pnl`, including carried-forward derivatives positions) broken down into realised and unrealised P&L, alongside the `open/total` position count.
+**Positions** displays your open and closed positions for the day: product, symbol, net quantity, average price, live LTP, live P&L, and day change `%`. A summary header above the table shows total P&L (Kite's `pnl`, including carried-forward derivatives positions) broken down into realised and unrealised P&L, alongside the `open/total` position count. A closed position (net quantity `0`) counts entirely as realised, and its symbol and P&L are greyed out.
 
 - **Trade or exit:** Press `b` or `s` to open the order ticket. Pressing `s` on a long position (or `b` on a short position) pre-fills the quantity required to exit.
-- **Convert product:** Press `c` to open the position conversion modal (for example, `MIS` to `CNC` or `NRML`). Because `c` is bound to conversion on this pane, open a position's chart via `Ctrl-K` → **Toggle chart**.
+- **Convert product:** Press `c` to open the position conversion modal (for example, `MIS` to `CNC` or `NRML`).
+- **Chart:** Press `Enter` to open an inline candlestick chart for the selected position; press `Enter` or `Esc` to close it. The instrument does not need to be in a watchlist.
 - **Alerts and sorting:** Press `a` to create a price alert for the selected position. Press `S` to cycle the sort column (`P&L`, `quantity`, `day %`, `symbol`).
 - **Live streaming:** Positions and holdings subscribe to WebSocket LTP ticks automatically, so P&L updates in real time even for instruments not present in your watchlist.
 
@@ -328,7 +329,9 @@ An Alert-to-Order (ATO) alert executes a basket of up to 20 orders on Kite's ser
 
 ## Chart
 
-The **Trading** and **Option Chain** workspaces include a dedicated **Chart** pane. On the **Orders** and **Holdings** panes, pressing `c` opens an inline candlestick chart for the selected row's instrument across the workspace; press `c` or `Esc` (or switch workspaces) to close it. On **Positions**, `c` is bound to product conversion, so open a position's chart via `Ctrl-K` → **Toggle chart**.
+The **Trading** and **Option Chain** workspaces include a dedicated **Chart** pane. On the **Orders** and **Holdings** panes, pressing `c` opens an inline candlestick chart for the selected row's instrument across the workspace; press `c` or `Esc` (or switch workspaces) to close it. On **Positions**, `c` is bound to product conversion, so press `Enter` instead.
+
+To chart an instrument that is not in a watchlist, press `/` on the Trading **Chart** pane, or run `Ctrl-K` → **Chart any instrument…** from anywhere, and pick it from the search. The Trading chart shows it until you move the watch cursor, which makes the chart follow the watchlist again.
 
 - **Expand (`C`):** Toggles whether the chart fills the entire workspace or shares the split layout with its sibling panes.
 - **Interval (`i`):** Cycles the candle interval across `1m`, `5m`, `15m`, `1h`, and `1D` (with lookback windows of 7, 30, 90, 180, and 250 days, respectively).
@@ -440,7 +443,9 @@ Available when a Chart pane is focused or when an inline chart is open on Orders
 
 | Key | Action |
 | --- | --- |
-| `c` | Open / close inline chart on Orders or Holdings (on Positions: use `Ctrl-K` → **Toggle chart**) |
+| `c` | Open / close inline chart on Orders or Holdings |
+| `Enter` | Open / close inline chart on Positions |
+| `/` | On the Trading Chart pane: chart any instrument without adding it to a watchlist |
 | `C` | Expand chart to fill workspace / restore split layout |
 | `i` | Cycle candle interval (`1m`, `5m`, `15m`, `1h`, `1D`) |
 | `v` | Toggle volume histogram |

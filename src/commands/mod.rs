@@ -10,6 +10,7 @@ mod orders;
 mod portfolio;
 mod request;
 mod stream;
+mod upgrade;
 mod user;
 
 use crate::app::output::Output;
@@ -43,6 +44,7 @@ pub async fn run(cli: Cli) -> Result<Output> {
 
     match command {
         Commands::Doctor { no_live } => config_cmd::doctor(&rt, no_live).await,
+        Commands::Upgrade(args) => upgrade::upgrade(&rt, &args).await,
         Commands::Config { command } => config_cmd::handle(&rt, &command),
         Commands::Auth { command } => auth::handle(&rt, command).await,
         Commands::User { command } => user::handle(&rt, command).await,

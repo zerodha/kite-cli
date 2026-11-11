@@ -100,6 +100,14 @@ pub fn widest(values: impl IntoIterator<Item = usize>) -> u16 {
     u16::try_from(values.into_iter().max().unwrap_or(0)).unwrap_or(u16::MAX)
 }
 
+/// Widens a column to its widest cell so a value is drawn whole or the
+/// column is dropped, never clipped.
+pub fn floor_to_cells(columns: &mut [FitCol], idx: usize, cells: impl IntoIterator<Item = usize>) {
+    if let Some(column) = columns.get_mut(idx) {
+        column.width = column.width.max(widest(cells));
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableLayout {
     pub inset: u16,

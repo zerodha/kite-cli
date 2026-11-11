@@ -1,4 +1,5 @@
 use crate::tui::app::SortTarget;
+use crate::tui::data::BookTotals;
 use crate::tui::format;
 use crate::tui::ui;
 use crate::tui::ui::columns::{self, FitCol};
@@ -6,13 +7,54 @@ pub(super) use crate::tui::ui::columns::{right, right_styled};
 use crate::tui::ui::pane::PaneHits;
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::text::Span;
+use ratatui::style::Modifier;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Cell, Table, TableState};
 
 pub(super) fn titles_fit(width: u16, title: &str, totals: &[Span]) -> bool {
     let title_w = format::display_width(title);
     let totals_w: usize = totals.iter().map(Span::width).sum();
     title_w + totals_w + 3 <= width as usize
+}
+
+/// Builds the widest totals strip that fits beside `title`, dropping the
+/// invested and then the current value before giving up.
+pub(super) fn totals_strip(width: u16, title: &str, totals: &BookTotals) -> Option<Line<'static>> {
+    let pct = |value: Option<f64>| value.map_or_else(|| ".".into(), format::percent);
+    let pnl = Span::styled(
+        format!(
+            "{} ({}) ",
+            format::signed_price(totals.pnl),
+            pct(totals.pnl_pct())
+        ),
+        format::change_style(totals.pnl).add_modifier(Modifier::BOLD),
+    );
+    let day = [
+        Span::styled("• day ", format::dim()),
+        Span::styled(
+            format!(
+                "{} ({}) ",
+                format::signed_price(totals.day_pnl),
+                pct(totals.day_pct())
+            ),
+            format::change_style(totals.day_pnl).add_modifier(Modifier::BOLD),
+        ),
+    ];
+    let invested = format!("inv {} • ", format::inr(totals.invested));
+    let current = format!("cur {} • ", format::inr(totals.current));
+    [
+        format!(" {invested}{current}"),
+        format!(" {current}"),
+        " ".into(),
+    ]
+    .into_iter()
+    .map(|lead| {
+        let mut spans = vec![Span::styled(lead, format::dim()), pnl.clone()];
+        spans.extend(day.iter().cloned());
+        spans
+    })
+    .find(|spans| titles_fit(width, title, spans))
+    .map(|spans| Line::from(spans).right_aligned())
 }
 
 pub(super) fn symbol_cells(exchange: &str, tradingsymbol: &str) -> usize {

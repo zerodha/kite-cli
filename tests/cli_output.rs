@@ -27,7 +27,32 @@ impl Setup {
             server: MockServer::start(),
         };
         setup.save_session();
+        setup.publish_release("/releases", env!("CARGO_PKG_VERSION"));
         setup
+    }
+
+    /// Serves GitHub's `/releases/latest` redirect to `version` under `base`.
+    fn publish_release(&self, base: &str, version: &str) -> httpmock::Mock<'_> {
+        self.server.mock(|when, then| {
+            when.method(GET).path(format!("{base}/latest"));
+            then.status(302).header(
+                "location",
+                format!("https://github.com/zerodha/kite-cli/releases/tag/v{version}"),
+            );
+        })
+    }
+
+    /// Runs with the release lookup pointed at `base` on the mock server.
+    fn run_with_releases(&self, base: &str, args: &[&str], json: bool) -> Output {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_kite"));
+        self.configure_command(&mut command)
+            .env("KITE_RELEASES_URL", self.server.url(base))
+            .arg("--config")
+            .arg(&self.config);
+        if json {
+            command.arg("--json");
+        }
+        command.args(args).output().unwrap()
     }
 
     fn save_session(&self) {
@@ -70,6 +95,7 @@ impl Setup {
             .env("TEMP", &self.home)
             .env("TMP", &self.home)
             .env("NO_COLOR", "")
+            .env("KITE_RELEASES_URL", self.server.url("/releases"))
     }
 
     fn cache_path(&self) -> PathBuf {
@@ -381,6 +407,119 @@ fn doctor_and_paths_are_human_and_json_stays_unchanged() {
         format!("{}\n", setup.config.display()).as_bytes()
     );
     assert_eq!(path.stderr, b"");
+}
+
+#[test]
+fn doctor_reports_newer_releases_without_failing() {
+    let setup = Setup::new();
+    setup.server.mock(|when, then| {
+        when.method(GET).path("/user/margins");
+        then.status(200).body(fixture("margins.json"));
+    });
+    let newer = setup.publish_release("/newer", "99.0.0");
+    let installed = env!("CARGO_PKG_VERSION");
+    for (base, expected) in [
+        (
+            "/newer",
+            json!({"checked": true, "installed": installed, "latest": "99.0.0", "update_available": true}),
+        ),
+        (
+            "/releases",
+            json!({"checked": true, "installed": installed, "latest": installed, "update_available": false}),
+        ),
+        (
+            "/missing",
+            json!({
+                "checked": false, "installed": installed,
+                "reason": "GitHub releases answered HTTP 404 instead of a redirect"
+            }),
+        ),
+    ] {
+        let output = setup.run_with_releases(base, &["doctor"], true);
+        assert_eq!(output.status.code(), Some(0), "{base}");
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["ok"], true, "{base}");
+        assert_eq!(value["update"], expected, "{base}");
+    }
+    let human = setup.run_with_releases("/newer", &["doctor"], false);
+    assert_eq!(human.status.code(), Some(0));
+    let text = String::from_utf8(human.stdout).unwrap();
+    assert!(text.contains("– Release    99.0.0 available\n"), "{text}");
+    assert!(
+        text.ends_with(&format!(
+            "All checks passed.\nkite 99.0.0 is available (installed {installed}). Run `kite upgrade`.\n"
+        )),
+        "{text}"
+    );
+    let skipped = setup.run_with_releases("/newer", &["doctor", "--no-live"], true);
+    let value: Value = serde_json::from_slice(&skipped.stdout).unwrap();
+    assert_eq!(
+        value["update"],
+        json!({"checked": false, "installed": installed, "reason": "skipped"})
+    );
+    newer.assert_calls(2);
+}
+
+#[test]
+fn upgrade_check_reports_without_installing() {
+    let setup = Setup::new();
+    setup.publish_release("/newer", "99.0.0");
+    let older = setup.publish_release("/older", "0.0.1");
+    let installed = env!("CARGO_PKG_VERSION");
+
+    let wire = setup.run_with_releases("/newer", &["upgrade", "--check"], true);
+    assert_eq!(wire.status.code(), Some(0));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&wire.stdout).unwrap(),
+        json!({"installed": installed, "latest": "99.0.0", "update_available": true})
+    );
+    assert_eq!(wire.stderr, b"");
+    let human = setup.run_with_releases("/newer", &["upgrade", "--check"], false);
+    assert_eq!(human.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(human.stdout).unwrap(),
+        format!("kite 99.0.0 is available (installed {installed}). Run `kite upgrade`.\n")
+    );
+
+    for args in [&["upgrade", "--check"][..], &["upgrade"][..]] {
+        let current = setup.run_with_releases("/releases", args, false);
+        assert_eq!(current.status.code(), Some(0), "{args:?}");
+        assert_eq!(
+            String::from_utf8(current.stdout).unwrap(),
+            format!("kite {installed} is up to date.\n")
+        );
+        let ahead = setup.run_with_releases("/older", args, false);
+        assert_eq!(ahead.status.code(), Some(0), "{args:?}");
+        assert_eq!(
+            String::from_utf8(ahead.stdout).unwrap(),
+            format!("kite {installed} is up to date (latest release 0.0.1).\n")
+        );
+    }
+    older.assert_calls(2);
+
+    let failed = setup.run_with_releases("/missing", &["upgrade", "--check"], true);
+    assert_eq!(failed.status.code(), Some(1));
+    let value: Value = serde_json::from_slice(&failed.stdout).unwrap();
+    assert_eq!(
+        value["error"]["message"],
+        "GitHub releases answered HTTP 404 instead of a redirect"
+    );
+
+    for (args, message) in [
+        (
+            &["upgrade", "--version", "0.2.x"][..],
+            "invalid version \"0.2.x\"; expected MAJOR.MINOR.PATCH",
+        ),
+        (
+            &["upgrade", "--check", "--version", "0.2.1"][..],
+            "cannot be used with",
+        ),
+    ] {
+        let rejected = setup.run(Path::new(env!("CARGO_BIN_EXE_kite")), args, false);
+        assert_eq!(rejected.status.code(), Some(2), "{args:?}");
+        let stderr = String::from_utf8(rejected.stderr).unwrap();
+        assert!(stderr.contains(message), "{stderr}");
+    }
 }
 
 #[test]

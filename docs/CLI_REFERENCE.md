@@ -17,7 +17,8 @@ A composable CLI for Zerodha Kite: auth, orders, portfolio, market data, instrum
 Usage: kite [OPTIONS] [COMMAND]
 
 Commands:
-  doctor      Verify install, config, auth sources, and read-only API reachability
+  doctor      Verify install, config, auth sources, read-only API reachability, and newer releases
+  upgrade     Upgrade kite to the latest release with the official installer
   config      Manage the kite config file (see `kite config path`)
   auth        Interactive token login and logout
   user        User profile and available funds/margins
@@ -68,13 +69,13 @@ Safety:
 ### `kite doctor`
 
 ```text
-Verify install, config, auth sources, and read-only API reachability
+Verify install, config, auth sources, read-only API reachability, and newer releases
 
 Usage: kite doctor [OPTIONS]
 
 Options:
       --no-live
-          Skip the live /user/margins auth check even if a session is present
+          Skip the live /user/margins auth check and the GitHub release check
 
   -h, --help
           Print help (see a summary with '-h')
@@ -91,6 +92,40 @@ Examples:
   kite doctor --no-live
 
 `doctor` never prints full credentials. Without auth it reports setup steps instead of failing early.
+```
+
+### `kite upgrade`
+
+```text
+Upgrade kite to the latest release with the official installer
+
+Usage: kite upgrade [OPTIONS]
+
+Options:
+      --check
+          Only report whether a newer release exists
+
+      --version <VERSION>
+          Install this release instead of the latest, for example 0.2.1. Can also downgrade
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Global options:
+      --json
+          Emit machine-readable JSON. Diagnostics/errors stay JSON-safe and credentials are redacted
+
+      --config <PATH>
+          Config path. Defaults to $KITE_CONFIG or the kite config file (see `kite config path`)
+
+Examples:
+  kite upgrade --check
+  kite upgrade
+  kite upgrade --version 0.2.1
+
+`upgrade` downloads scripts/install.sh (install.ps1 on Windows) from the target release tag and runs it for the directory that holds this kite binary. It refuses binaries from the Nix store or reached through a symlink, as package managers install them; upgrade those with the package manager. On Windows it prints the PowerShell installer command to run after kite exits, because a running kite.exe cannot be replaced.
+
+`--check` exits 0 whether or not an update exists and 1 only when the release lookup fails. Use `kite --json upgrade --check` and read `update_available` in scripts.
 ```
 
 ### `kite config`

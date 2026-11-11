@@ -92,6 +92,7 @@ impl App {
     pub(in crate::tui::app) fn exec_menu_action(&mut self, action: MenuAction) {
         match action {
             MenuAction::ToggleChart => self.toggle_chart_panel(self.palette_origin()),
+            MenuAction::ChartInstrument => self.open_chart_search(),
             MenuAction::CycleInterval => self.cycle_interval(self.palette_origin()),
             MenuAction::ToggleVolume => self.toggle_chart_volume(self.palette_origin()),
             MenuAction::CycleIndicator => self.cycle_chart_indicator(self.palette_origin()),
@@ -196,6 +197,22 @@ mod tests {
             state(&app).selected_item(),
             Some(ExecItem::Action(MenuAction::NewAlert))
         ));
+    }
+
+    #[test]
+    fn the_chart_any_instrument_row_opens_the_chart_picker() {
+        let mut app = app_with_master();
+        app.set_pane(PaneId::PortfolioPositions);
+        open(&mut app, "Chart any");
+        assert!(matches!(
+            state(&app).selected_item(),
+            Some(ExecItem::Action(MenuAction::ChartInstrument))
+        ));
+        press(&mut app, KeyCode::Enter);
+        let Some(Modal::Search(search)) = app.modals.last() else {
+            panic!("the row opens the chart picker: {:?}", app.modals.last());
+        };
+        assert_eq!(search.purpose, SearchPurpose::OpenChart);
     }
 
     #[test]

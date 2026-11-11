@@ -10,6 +10,7 @@ use crate::tui::ui::columns::{
 };
 use crate::tui::ui::pane::{PaneHits, PlainList, WatchInput};
 use crate::tui::workspace::PaneId;
+use kiteconnect::ticker::Tick;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
@@ -171,6 +172,33 @@ pub(super) const WATCH_LABELS: [(&str, bool); 7] = [
     ("VOL", true),
 ];
 
+const WATCH_LTP: usize = 1;
+const WATCH_CHG: usize = 3;
+const WATCH_HIGH: usize = 4;
+const WATCH_LOW: usize = 5;
+
+fn watch_columns(ticks: &[Option<&Tick>]) -> [FitCol; 7] {
+    let cells = |text: fn(&Tick) -> Option<String>| {
+        ticks
+            .iter()
+            .map(move |tick| tick.and_then(text).map_or(1, |text| text.len()))
+    };
+    let mut cols = WATCH_COLS;
+    columns::floor_to_cells(
+        &mut cols,
+        WATCH_LTP,
+        cells(|t| t.last_price.map(format::price)),
+    );
+    columns::floor_to_cells(
+        &mut cols,
+        WATCH_CHG,
+        cells(|t| ticks::change(t).map(format::signed_price)),
+    );
+    columns::floor_to_cells(&mut cols, WATCH_HIGH, cells(|t| t.high.map(format::price)));
+    columns::floor_to_cells(&mut cols, WATCH_LOW, cells(|t| t.low.map(format::price)));
+    cols
+}
+
 fn draw_watch_table(
     frame: &mut Frame,
     area: Rect,
@@ -189,10 +217,16 @@ fn draw_watch_table(
         .iter()
         .map(|item| (item.label(), app.alert_state(item.instrument_token)))
         .collect();
-    let fit = columns::fit_columns(table_budget(area.width), 1, &WATCH_COLS);
+    let ticks: Vec<Option<&Tick>> = input
+        .rows
+        .iter()
+        .map(|item| app.tick(item.instrument_token))
+        .collect();
+    let cols = watch_columns(&ticks);
+    let fit = columns::fit_columns(table_budget(area.width), 1, &cols);
     let layout = columns::spread(
         &fit,
-        &WATCH_COLS,
+        &cols,
         &[columns::text(
             0,
             columns::widest(labels.iter().map(|(label, bell)| {
@@ -207,8 +241,8 @@ fn draw_watch_table(
         .rows
         .iter()
         .zip(&labels)
-        .map(|(item, (label, bell))| {
-            let tick = app.tick(item.instrument_token);
+        .zip(&ticks)
+        .map(|((item, (label, bell)), &tick)| {
             let ltp = tick.and_then(|t| t.last_price);
             let change = tick.and_then(ticks::change);
             let change_pct = tick.and_then(ticks::change_percent);
@@ -523,5 +557,55 @@ mod watch_flash_render_tests {
         assert!(cell.modifier.contains(Modifier::BOLD));
         assert_ne!(cell.bg, format::up());
         assert_ne!(cell.bg, format::down());
+    }
+
+    fn mrf_rows(width: u16) -> Vec<String> {
+        let mut app = test_app();
+        app.watch.test_push(WatchItem {
+            exchange: "NSE".into(),
+            tradingsymbol: "MRF".into(),
+            instrument_token: 582_913,
+            segment: "NSE".into(),
+            ..WatchItem::default()
+        });
+        let mut tick = Tick::default();
+        tick.instrument_token = 582_913;
+        tick.last_price = Some(126_040.0);
+        tick.close = Some(125_105.0);
+        tick.high = Some(126_475.0);
+        tick.low = Some(123_760.0);
+        app.on_event(AppEvent::Ws(TickerEvent::Ticks(vec![tick])));
+        let mut terminal = Terminal::new(TestBackend::new(width, 4)).unwrap();
+        terminal
+            .draw(|frame| draw_watch(frame, frame.area(), &app))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        (0..4)
+            .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+            .collect()
+    }
+
+    #[test]
+    fn a_six_digit_price_draws_whole_in_every_price_column() {
+        let rows = mrf_rows(120);
+        for value in ["1,26,040.00", "+935.00", "1,26,475.00", "1,23,760.00"] {
+            assert!(rows[2].contains(value), "{value} missing: {:?}", rows[2]);
+        }
+    }
+
+    #[test]
+    fn a_six_digit_price_is_whole_or_absent_at_every_width() {
+        let whole = ["1,26,040.00", "1,26,475.00", "1,23,760.00"];
+        for width in 30..=120u16 {
+            let row = &mrf_rows(width)[2];
+            for token in row.split_whitespace() {
+                if token.contains(',') && !token.starts_with('+') {
+                    assert!(
+                        whole.contains(&token),
+                        "width {width} drew a partial price {token:?}: {row:?}"
+                    );
+                }
+            }
+        }
     }
 }

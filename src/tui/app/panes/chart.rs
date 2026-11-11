@@ -1,4 +1,6 @@
-use super::super::{App, ChartPanel, ChartTarget, PaneId, ToastLevel};
+use super::super::{
+    App, ChartPanel, ChartTarget, Modal, PaneId, SearchPurpose, SearchState, ToastLevel,
+};
 use super::holdings::holding_identity;
 use super::orders::order_identity;
 use super::positions::position_identity;
@@ -147,6 +149,22 @@ impl App {
         self.hit.borrow_mut().invalidate();
         self.sync_subscriptions();
         self.ensure_candles(true);
+    }
+
+    /// Shows any instrument on the Trading chart without adding it to a
+    /// watchlist. Moving the watch cursor makes the chart follow it again.
+    pub(in crate::tui::app) fn open_instrument_chart(&mut self, token: u32) {
+        self.trading_chart.bind(ChartBinding::Instrument(token));
+        self.show_pane(PaneId::TradingChart);
+        self.sync_subscriptions();
+        self.ensure_candles(true);
+    }
+
+    pub(in crate::tui::app) fn open_chart_search(&mut self) {
+        self.modals.push(Modal::Search(SearchState {
+            purpose: SearchPurpose::OpenChart,
+            ..SearchState::default()
+        }));
     }
 
     pub(in crate::tui::app) fn close_chart_panel(&mut self) {

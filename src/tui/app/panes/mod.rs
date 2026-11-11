@@ -247,6 +247,10 @@ impl App {
     }
 
     fn after_selection_change(&mut self, pane: PaneId, changed: bool) {
+        if changed && pane == PaneId::TradingWatch {
+            self.trading_chart
+                .bind(pane_state::ChartBinding::SelectionOf(pane));
+        }
         if changed && self.links_read(pane) {
             self.sync_subscriptions();
             return;

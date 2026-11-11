@@ -14,6 +14,15 @@ impl App {
         binding: ChartBinding,
     ) -> Option<ChartTarget> {
         match binding {
+            ChartBinding::Instrument(token) => {
+                let instrument = self.instruments.as_ref()?.by_token(token)?;
+                Some(ChartTarget {
+                    exchange: instrument.exchange.clone(),
+                    tradingsymbol: instrument.tradingsymbol.clone(),
+                    instrument_token: token,
+                    row_identity: format!("instrument:{token}"),
+                })
+            }
             ChartBinding::UnderlyingOf(pane) => {
                 let chain = self.chain_pane_of(pane)?;
                 let token = chain.spot_token()?;

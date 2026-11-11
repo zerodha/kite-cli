@@ -30,7 +30,7 @@ const PANEL_POS_COLS: [FitCol; 6] = [
     col(11, 5),            // AVG
     col(11, 2),            // LTP
     col(PANEL_PNL_W, 1),   // P&L
-    col(9, 4),             // CHG%
+    col(9, 4),             // P&L%
 ];
 
 const PANEL_POS_LABELS: [(&str, bool); 6] = [
@@ -39,8 +39,19 @@ const PANEL_POS_LABELS: [(&str, bool); 6] = [
     ("AVG", true),
     ("LTP", true),
     ("P&L", true),
-    ("CHG%", true),
+    ("P&L%", true),
 ];
+
+/// The LTP move from the average price, signed so a short gains when the
+/// price falls. A closed position has no open cost to measure against.
+fn position_pnl_pct(position: &Position, ltp: f64) -> Option<f64> {
+    let average = position.average_price;
+    if position.quantity == 0 || average <= 0.0 {
+        return None;
+    }
+    let side = if position.quantity > 0 { 1.0 } else { -1.0 };
+    Some((ltp - average) / average * 100.0 * side)
+}
 
 fn position_panel_row(
     app: &App,
@@ -51,8 +62,7 @@ fn position_panel_row(
     let live = app.live_ltp(position.instrument_token);
     let ltp = live.unwrap_or(position.last_price);
     let pnl = crate::tui::data::position_live_pnl(position, live);
-    let day_pct = (position.close_price > 0.0)
-        .then(|| (ltp - position.close_price) / position.close_price * 100.0);
+    let pnl_pct = position_pnl_pct(position, ltp);
     let qty_style = if position.quantity == 0 {
         format::dim()
     } else {
@@ -78,8 +88,8 @@ fn position_panel_row(
             },
             &|| {
                 right_styled(
-                    day_pct.map_or_else(|| ".".into(), format::percent),
-                    day_pct.map(format::change_style).unwrap_or_default(),
+                    pnl_pct.map_or_else(|| ".".into(), format::percent),
+                    pnl_pct.map(format::change_style).unwrap_or_default(),
                 )
             },
         ],
@@ -527,6 +537,44 @@ mod tests {
             assert_ne!(theme.accent, theme.border, "{name}: focus border");
             assert_ne!(Some(theme.accent), theme.background, "{name}: title");
         }
+    }
+
+    #[test]
+    fn the_positions_book_shows_pnl_percent_against_average_not_the_day_change() {
+        let mut app = test_app();
+        let row = |symbol: &str, quantity: i64, average: f64, ltp: f64, close: f64| {
+            let mut row = position(symbol);
+            row.quantity = quantity;
+            row.average_price = average;
+            row.last_price = ltp;
+            row.close_price = close;
+            row
+        };
+        app.positions = Some({
+            let mut book = crate::tui::data::test_models::positions();
+            book.net = vec![
+                row("LONG", 10, 100.0, 105.0, 110.0),
+                row("SHORT", -10, 200.0, 210.0, 200.0),
+                row("CLOSED", 0, 0.0, 7.3, 17.0),
+            ];
+            book
+        });
+        let rows = panel_rows(&app, 100, 9, draw_positions_panel);
+        let cells = |symbol: &str| -> Vec<String> {
+            rows.iter()
+                .find(|row| row.contains(symbol))
+                .unwrap_or_else(|| panic!("{symbol} row: {rows:#?}"))
+                .trim_matches('│')
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect()
+        };
+
+        assert!(rows[1].contains("P&L%"), "{:?}", rows[1]);
+        assert!(!rows[1].contains("CHG%"), "{:?}", rows[1]);
+        assert_eq!(cells("LONG").last().map(String::as_str), Some("+5.00%"));
+        assert_eq!(cells("SHORT").last().map(String::as_str), Some("-5.00%"));
+        assert_eq!(cells("CLOSED").last().map(String::as_str), Some("."));
     }
 
     fn reported_holding() -> Holding {

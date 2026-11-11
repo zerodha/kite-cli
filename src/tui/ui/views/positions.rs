@@ -37,9 +37,13 @@ fn positions_summary(positions: &[Position], ltp: impl Fn(u32) -> Option<f64>) -
         let live_pnl =
             crate::tui::data::position_live_pnl(position, ltp(position.instrument_token));
         summary.total += live_pnl;
-        summary.realized += position.realised;
-        summary.unrealized += live_pnl - position.realised;
-        if position.quantity != 0 {
+        // Kite leaves `realised` at zero for positions squared off today, so a
+        // flat position's whole P&L is booked.
+        if position.quantity == 0 {
+            summary.realized += live_pnl;
+        } else {
+            summary.realized += position.realised;
+            summary.unrealized += live_pnl - position.realised;
             summary.open += 1;
         }
     }
@@ -140,15 +144,23 @@ fn position_row(
     } else {
         None
     };
-    let qty_style = if position.quantity == 0 {
-        format::dim()
+    let closed = position.quantity == 0;
+    let (qty_style, pnl_style) = if closed {
+        (format::dim(), format::dim())
     } else {
-        Style::default()
+        (Style::default(), format::change_style(pnl))
     };
     fit_row(
         fit,
         &[
-            &|| symbol_cell(&position.exchange, &position.tradingsymbol, sym_w),
+            &|| {
+                let cell = symbol_cell(&position.exchange, &position.tradingsymbol, sym_w);
+                if closed {
+                    cell.style(format::dim())
+                } else {
+                    cell
+                }
+            },
             &|| Cell::from(Span::styled(position.product.clone(), format::dim())),
             &|| right_styled(position.quantity.to_string(), qty_style),
             &|| right(format::price(position.average_price)),
@@ -156,7 +168,7 @@ fn position_row(
             &|| {
                 right_styled(
                     format::fit_money(pnl, &format::signed_price(pnl), POS_PNL_W as usize),
-                    format::change_style(pnl),
+                    pnl_style,
                 )
             },
             &|| {

@@ -1,5 +1,6 @@
 use crate::app::errors::format_error;
 use crate::app::output::{Output, redact};
+use crate::app::release;
 use crate::app::render;
 use crate::app::runtime::Runtime;
 use crate::cli::ConfigCommands;
@@ -53,6 +54,8 @@ pub async fn doctor(rt: &Runtime, no_live: bool) -> Result<Output> {
         },
     };
 
+    let update = update_check(no_live).await;
+
     let passed = setup.is_empty() && api_ok;
     Ok(Output::check(
         passed,
@@ -78,11 +81,30 @@ pub async fn doctor(rt: &Runtime, no_live: bool) -> Result<Output> {
                 },
             },
             "api": api,
+            "update": update,
             "setup": setup,
             "env_vars": ["KITE_API_ROOT", "KITE_API_KEY", "KITE_TICKER_URL", "KITE_USER_ID", "KITE_ACCESS_TOKEN", "KITE_CONFIG"],
         }),
         render::doctor,
     ))
+}
+
+/// Reports whether a newer release exists. A failed lookup never fails `doctor`.
+async fn update_check(no_live: bool) -> serde_json::Value {
+    let installed = env!("CARGO_PKG_VERSION");
+    if no_live {
+        return json!({ "checked": false, "installed": installed, "reason": "skipped" });
+    }
+    match release::check().await {
+        Ok(status) => {
+            let mut value = status.to_json();
+            value["checked"] = true.into();
+            value
+        }
+        Err(err) => {
+            json!({ "checked": false, "installed": installed, "reason": format_error(&err) })
+        }
+    }
 }
 
 pub fn handle(rt: &Runtime, command: &ConfigCommands) -> Result<Output> {

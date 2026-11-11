@@ -31,6 +31,15 @@ fn gtt_type_label(gtt: &Gtt) -> &str {
     }
 }
 
+fn gtt_triggers(gtt: &Gtt) -> String {
+    gtt.condition
+        .trigger_values
+        .iter()
+        .map(|value| format::price(*value))
+        .collect::<Vec<_>>()
+        .join(" / ")
+}
+
 const GTT_SYM_MIN: u16 = 12;
 const GTT_SYM_MAX: u16 = 40;
 
@@ -56,6 +65,9 @@ pub(super) const GTT_LABELS: [(&str, bool); 8] = [
     ("CREATED", false),
 ];
 
+const GTT_TRIGGER: usize = 3;
+const GTT_LTP: usize = 4;
+
 pub fn draw_gtts_pane(
     frame: &mut Frame,
     area: Rect,
@@ -68,7 +80,18 @@ pub fn draw_gtts_pane(
     };
 
     let targets = gtt_sort_targets();
-    let cols = columns::sort_floors(&GTT_COLS, &GTT_LABELS, &targets.map(|(idx, _)| idx));
+    let mut cols = columns::sort_floors(&GTT_COLS, &GTT_LABELS, &targets.map(|(idx, _)| idx));
+    columns::floor_to_cells(
+        &mut cols,
+        GTT_TRIGGER,
+        gtts.iter().map(|gtt| gtt_triggers(gtt).len()),
+    );
+    columns::floor_to_cells(
+        &mut cols,
+        GTT_LTP,
+        gtts.iter()
+            .map(|gtt| format::price(gtt.condition.last_price).len()),
+    );
     let fit = columns::fit_columns(table_budget(area.width), 1, &cols);
     let layout = columns::spread(
         &fit,
@@ -89,14 +112,6 @@ pub fn draw_gtts_pane(
         .iter()
         .map(|&i| {
             let gtt = &gtts[i];
-            let triggers = || {
-                gtt.condition
-                    .trigger_values
-                    .iter()
-                    .map(|value| format::price(*value))
-                    .collect::<Vec<_>>()
-                    .join(" / ")
-            };
             let order = || {
                 gtt.orders.first().map_or_else(
                     || ".".to_string(),
@@ -131,7 +146,7 @@ pub fn draw_gtts_pane(
                     &|| Cell::from(Span::styled(gtt.id.to_string(), format::dim())),
                     &|| symbol_cell(&gtt.condition.exchange, &gtt.condition.tradingsymbol, sym_w),
                     &|| Cell::from(Span::styled(gtt_type_label(gtt).to_string(), format::dim())),
-                    &|| right(triggers()),
+                    &|| right(gtt_triggers(gtt)),
                     &|| right(format::price(gtt.condition.last_price)),
                     &|| Cell::from(Span::styled(gtt.status.clone(), status_style)),
                     &|| Cell::from(Span::styled(order(), side_style)),
@@ -318,5 +333,35 @@ mod gtt_tests {
             gtt_type_label(&gtt("bracket", vec![order()], vec![700.0])),
             "bracket"
         );
+    }
+
+    #[test]
+    fn six_digit_triggers_and_ltp_are_drawn_whole() {
+        let client = kiteconnect::KiteConnect::builder("test-key")
+            .access_token(kiteconnect::AccessToken::new("tok").unwrap())
+            .build()
+            .expect("dummy client builds");
+        let (events_tx, _events_rx) = tokio::sync::mpsc::channel(8);
+        let mut app = crate::tui::app::App::new(
+            client,
+            events_tx,
+            crate::tui::marketwatch::State::test_loaded(Vec::new()),
+            crate::tui::notes::Pad::default(),
+            false,
+            &crate::tui::settings::Settings::default(),
+        );
+        let mut row = gtt("two-leg", vec![order()], vec![113_436.0, 138_644.0]);
+        row.condition.last_price = 126_040.0;
+        app.gtts = Some(vec![row]);
+        let width = 160;
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, 6)).unwrap();
+        terminal
+            .draw(|frame| super::super::draw_gtts(frame, frame.area(), &app))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let row: String = (0..width).map(|x| buffer[(x, 2)].symbol()).collect();
+        assert!(row.contains("1,13,436.00 / 1,38,644.00"), "{row:?}");
+        assert!(row.contains("1,26,040.00"), "{row:?}");
     }
 }

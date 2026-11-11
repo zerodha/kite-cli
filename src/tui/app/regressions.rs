@@ -1,13 +1,19 @@
+use super::navigation::tests::stocked;
 use super::test_support::{
-    H, W, ato_alert, char_key, char_key_code, render, server_alert, test_app,
+    H, W, ato_alert, char_key, char_key_code, master_inst, position, render, screen, server_alert,
+    test_app,
 };
-use super::{Modal, SearchState};
-use crate::tui::data::{AlertListSequence, DataEvent};
+use super::{Modal, OrderDetailState, SearchPurpose, SearchState};
+use crate::tui::candles::SeriesKey;
+use crate::tui::data::{AlertListSequence, DataEvent, Order, OrderHistoryRequest};
 use crate::tui::event::AppEvent;
+use crate::tui::instruments::InstrumentStore;
 use crate::tui::ticket::PendingAction;
 use crate::tui::workspace::PaneId;
+use crate::tui::workspace::Preset;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use kiteconnect::AlertStatus;
+use std::sync::Arc;
 
 #[test]
 fn paste_into_search_cannot_execute_a_second_line() {
@@ -265,4 +271,167 @@ async fn a_fresh_buy_gtt_seeds_the_limit_at_the_trigger() {
     };
     assert_eq!(ticket.price, ticket.trigger);
     assert_eq!(ticket.price, "105.00");
+}
+
+fn frame_buffer(app: &super::App) -> ratatui::buffer::Buffer {
+    let mut terminal =
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(W, H)).expect("test terminal");
+    terminal
+        .draw(|frame| super::ui::draw(frame, app))
+        .expect("frame draws");
+    terminal.backend().buffer().clone()
+}
+
+fn fg_of(buffer: &ratatui::buffer::Buffer, needle: &str) -> Option<ratatui::style::Color> {
+    let area = buffer.area;
+    (area.top()..area.bottom()).find_map(|y| {
+        let line: String = (area.left()..area.right())
+            .map(|x| buffer[(x, y)].symbol())
+            .collect();
+        let byte = line.find(needle)?;
+        let x = u16::try_from(line[..byte].chars().count()).expect("column fits u16");
+        Some(buffer[(area.left() + x, y)].fg)
+    })
+}
+
+fn positions_app(net: Vec<crate::tui::data::Position>) -> super::App {
+    let mut app = test_app();
+    app.set_pane(PaneId::PortfolioPositions);
+    app.on_data(DataEvent::Positions(Ok({
+        let mut book = crate::tui::data::test_models::positions();
+        book.net = net;
+        book
+    })));
+    app
+}
+
+#[test]
+fn a_closed_position_greys_its_symbol_and_pnl() {
+    let _theme = crate::tui::settings::theme_guard(
+        crate::tui::settings::preset("kite").expect("kite theme"),
+    );
+    let app = positions_app(vec![
+        position("LIVE", 1, 10, 123.0, 100.0, 100.0),
+        position("SHUT", 2, 0, -45.5, 100.0, 100.0),
+    ]);
+    let buffer = frame_buffer(&app);
+    let muted = Some(crate::tui::format::text_muted());
+    assert_eq!(fg_of(&buffer, "NSE:SHUT"), muted, "closed symbol");
+    assert_eq!(fg_of(&buffer, "-45.50"), muted, "closed P&L");
+    assert_ne!(fg_of(&buffer, "NSE:LIVE"), muted, "open symbol");
+    assert_ne!(fg_of(&buffer, "+123.00"), muted, "open P&L");
+}
+
+#[test]
+fn a_closed_position_books_its_pnl_as_realized() {
+    let app = positions_app(vec![
+        position("LIVE", 1, 1, -1.0, 100.0, 100.0),
+        position("SHUT", 2, 0, -650.0, 100.0, 100.0),
+    ]);
+    let text = screen(&app, W, H);
+    assert!(text.contains("realized -₹650"), "{text}");
+    assert!(text.contains("unrealized -₹1 "), "{text}");
+}
+
+#[tokio::test]
+async fn enter_opens_the_selected_positions_chart() {
+    let mut app = stocked();
+    app.set_pane(PaneId::PortfolioPositions);
+    app.on_key(char_key_code(KeyCode::Enter));
+    assert_eq!(app.chart_panel_pane(), Some(PaneId::PortfolioPositions));
+    assert_eq!(
+        app.selected_chart_target()
+            .map(|target| target.tradingsymbol),
+        Some("BBB".to_string()),
+        "P&L sort puts BBB first"
+    );
+    let key = SeriesKey::new(102, app.chart_pane.interval());
+    assert_eq!(app.candle_requests.inflight(), Some(key));
+    assert!(
+        !app.watch_items()
+            .iter()
+            .any(|item| item.instrument_token == 102),
+        "charting a position must not add it to the watchlist"
+    );
+    app.on_key(char_key_code(KeyCode::Enter));
+    assert_eq!(app.chart_panel_pane(), None);
+}
+
+#[tokio::test]
+async fn the_trading_chart_opens_any_instrument_without_the_watchlist() {
+    let mut app = stocked();
+    app.instruments = Some(Arc::new(InstrumentStore::new(vec![master_inst(
+        "NSE", "NSE", "SBIN", 779_521,
+    )])));
+    app.switch_workspace(Preset::Trading);
+    app.focus_pane(PaneId::TradingChart);
+    app.on_key(char_key('/'));
+    let Some(Modal::Search(search)) = app.modals.last() else {
+        panic!("/ opens the instrument search: {:?}", app.modals.last())
+    };
+    assert_eq!(search.purpose, SearchPurpose::OpenChart);
+    for c in "SBIN".chars() {
+        app.on_key(char_key(c));
+    }
+    app.on_key(char_key_code(KeyCode::Enter));
+
+    assert!(app.modals.is_empty());
+    assert_eq!(app.focused_pane(), PaneId::TradingChart);
+    let charted = |app: &super::App| {
+        app.trading_chart
+            .target()
+            .map(|target| target.tradingsymbol.clone())
+    };
+    assert_eq!(charted(&app), Some("SBIN".to_string()));
+    let key = SeriesKey::new(779_521, app.trading_chart.interval());
+    assert!(
+        app.candle_requests.inflight() == Some(key) || app.candle_requests.queued().contains(&key),
+        "the picked instrument's candles are requested"
+    );
+    assert!(
+        !app.watch_items()
+            .iter()
+            .any(|item| item.instrument_token == 779_521),
+        "charting must not add the instrument to the watchlist"
+    );
+
+    app.move_selection_in(PaneId::TradingWatch, 1);
+    assert_eq!(
+        charted(&app),
+        Some("RELIANCE".to_string()),
+        "moving the watch cursor follows the list again"
+    );
+}
+
+fn order_detail_screen(order: Order) -> String {
+    let mut app = test_app();
+    app.modals
+        .push(Modal::OrderDetail(Box::new(OrderDetailState {
+            request: OrderHistoryRequest {
+                order_id: order.order_id.clone(),
+                seq: 1,
+            },
+            order,
+            history: Some(Ok(Vec::new())),
+        })));
+    screen(&app, W, H)
+}
+
+#[test]
+fn order_detail_shows_the_exchange_order_id_or_why_it_is_missing() {
+    let envelope: serde_json::Value =
+        serde_json::from_str(include_str!("../../../mock_responses/orders.json")).expect("orders");
+    let orders: Vec<Order> = serde_json::from_value(envelope["data"].clone()).expect("orders data");
+
+    let filled = order_detail_screen(orders[1].clone());
+    assert!(filled.contains("Exch ID    400000000000000"), "{filled}");
+    assert!(
+        filled.contains("Exch time  2021-05-31 15:20:28"),
+        "{filled}"
+    );
+
+    let rejected = order_detail_screen(orders[3].clone());
+    assert!(rejected.contains("Exch ID    not assigned"), "{rejected}");
+    assert!(!rejected.contains("Exch time"), "{rejected}");
+    assert!(rejected.contains("Insufficient funds."), "{rejected}");
 }

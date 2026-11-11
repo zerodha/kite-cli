@@ -17,6 +17,7 @@ pub(super) fn draw_search(frame: &mut Frame, state: &SearchState, app: &App) {
         SearchPurpose::ChainUnderlying => " Chain underlying ",
         SearchPurpose::NewAlert => " Alert on instrument ",
         SearchPurpose::AtoBasketItem => " Basket order instrument ",
+        SearchPurpose::OpenChart => " Chart instrument ",
     };
     let inner = modal_block(
         frame,

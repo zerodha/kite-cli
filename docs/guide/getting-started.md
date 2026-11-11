@@ -55,6 +55,7 @@ kite doctor
 
 `kite doctor` validates your local configuration, checks stored credentials, and performs a single read-only API call to `GET /user/margins`. It also displays the active API root and WebSocket ticker URL while redacting sensitive credentials.
 
+- It also checks GitHub for a newer `kite` release and suggests `kite upgrade` when one exists. A failed release check does not fail `doctor`.
 - Pass `--no-live` (`kite doctor --no-live`) to validate local settings without making a network call.
 - If any check fails, follow the printed hint or consult [Troubleshooting](troubleshooting.md).
 

@@ -6,6 +6,7 @@ use crate::tui::workspace::{PaneId, Preset};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuAction {
     ToggleChart,
+    ChartInstrument,
     CycleInterval,
     ToggleVolume,
     CycleIndicator,
@@ -29,6 +30,7 @@ impl MenuAction {
     pub fn label(self) -> &'static str {
         match self {
             MenuAction::ToggleChart => "Toggle chart",
+            MenuAction::ChartInstrument => "Chart any instrument…",
             MenuAction::CycleInterval => "Cycle chart interval",
             MenuAction::ToggleVolume => "Toggle chart volume",
             MenuAction::CycleIndicator => "Cycle chart indicator",
@@ -62,7 +64,11 @@ impl App {
 
         let watch = pane == PaneId::TradingWatch;
         let chartable = ChartBinding::of_book(pane).is_some();
-        let chart_toggle_key = (chartable && pane != PaneId::PortfolioPositions).then_some("c");
+        let chart_toggle_key = chartable.then_some(if pane == PaneId::PortfolioPositions {
+            "Enter"
+        } else {
+            "c"
+        });
         let mut rows = vec![
             PaletteRow::Header("Suggested"),
             item(ExecItem::Action(MenuAction::RefreshAll), Some("r")),
@@ -95,6 +101,10 @@ impl App {
         rows.push(item(
             ExecItem::Action(MenuAction::ToggleChart),
             chart_toggle_key,
+        ));
+        rows.push(item(
+            ExecItem::Action(MenuAction::ChartInstrument),
+            (pane == PaneId::TradingChart).then_some("/"),
         ));
         let charted = chartable || matches!(pane, PaneId::TradingChart | PaneId::DerivativesChart);
         rows.push(item(

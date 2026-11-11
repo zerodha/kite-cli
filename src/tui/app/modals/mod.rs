@@ -43,6 +43,8 @@ pub enum SearchPurpose {
     NewAlert,
 
     AtoBasketItem,
+
+    OpenChart,
 }
 
 #[derive(Debug)]

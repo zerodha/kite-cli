@@ -82,7 +82,7 @@ impl App {
             PaneId::TradingDepth => source == PaneId::TradingWatch,
             PaneId::TradingChart | PaneId::DerivativesChart => self
                 .chart_of(*pane)
-                .is_some_and(|chart| chart.binding().source() == source),
+                .is_some_and(|chart| chart.binding().source() == Some(source)),
             _ => false,
         })
     }

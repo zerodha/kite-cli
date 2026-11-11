@@ -171,6 +171,8 @@ impl App {
             {
                 self.toggle_chart_panel(pane);
             }
+            KeyCode::Enter if pane == PaneId::PortfolioPositions => self.toggle_chart_panel(pane),
+            KeyCode::Char('/') if pane == PaneId::TradingChart => self.open_chart_search(),
 
             KeyCode::Char('C') if self.open_chart().is_some() => {
                 self.chart_maximized = !self.chart_maximized;

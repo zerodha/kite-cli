@@ -1,7 +1,8 @@
 use super::book_state::{BookState, book_state, state_panel};
 use super::headers::{mf_header_sort, mf_sort_targets};
 use super::table::{
-    TableRows, record_header_hits, right, right_styled, selectable_table, sorted_title, titles_fit,
+    TableRows, record_header_hits, right, right_styled, selectable_table, sorted_title,
+    totals_strip,
 };
 use crate::tui::app::{App, MfSort};
 use crate::tui::data::{fund_display_name, mf_totals};
@@ -12,8 +13,7 @@ use crate::tui::ui::columns::{self, FitCol, col, fit_constraints, fit_row, table
 use crate::tui::ui::pane::{BookList, PaneHits};
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::style::Style;
 use ratatui::widgets::{Cell, Row, Table};
 
 fn pct_or_dash(pct: Option<f64>) -> (String, Style) {
@@ -124,40 +124,13 @@ pub fn draw_mf_pane(
         .map(|&i| mf_row(&mf[i], &fit, name_w))
         .collect();
 
-    let totals = mf_totals(mf);
-    let (pnl_pct_text, _) = pct_or_dash(totals.pnl_pct());
-    let (day_pct_text, _) = pct_or_dash(totals.day_pct());
-    let title_style = format::change_style(totals.pnl).add_modifier(Modifier::BOLD);
     let (header, marked) =
         columns::fit_header_sorted(&fit, &layout, &MF_LABELS, mf_header_sort(list.sort));
     let panel_title = list.title(&sorted_title("MF", list.sort.label(), marked));
-    let totals_strip = vec![
-        Span::styled(
-            format!(
-                " inv {} • cur {} • ",
-                format::inr(totals.invested),
-                format::inr(totals.current),
-            ),
-            format::dim(),
-        ),
-        Span::styled(
-            format!("{} ({}) ", format::signed_price(totals.pnl), pnl_pct_text),
-            title_style,
-        ),
-        Span::styled("• day ", format::dim()),
-        Span::styled(
-            format!(
-                "{} ({}) ",
-                format::signed_price(totals.day_pnl),
-                day_pct_text
-            ),
-            format::change_style(totals.day_pnl).add_modifier(Modifier::BOLD),
-        ),
-    ];
-    let totals_fit = titles_fit(area.width, &panel_title, &totals_strip);
+    let strip = totals_strip(area.width, &panel_title, &mf_totals(mf));
     let mut block = ui::panel(panel_title);
-    if totals_fit {
-        block = block.title(Line::from(totals_strip).right_aligned());
+    if let Some(strip) = strip {
+        block = block.title(strip);
     }
     let table = Table::new(rows, fit_constraints(&fit, &layout))
         .header(header)

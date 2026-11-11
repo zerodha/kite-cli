@@ -1,5 +1,6 @@
 use super::layout::{modal_block, wrapped_rows};
 use crate::tui::app::{App, OrderDetailState};
+use crate::tui::data::Order;
 
 use crate::tui::format;
 use crate::tui::ui::centered;
@@ -16,46 +17,7 @@ pub(super) fn draw_order_detail(frame: &mut Frame, state: &OrderDetailState, app
         _ => 2,
     };
 
-    let mut rows: Vec<(String, String)> = vec![
-        ("Time".into(), order.order_timestamp.to_string()),
-        (
-            "Symbol".into(),
-            format!("{}:{}", order.exchange, order.tradingsymbol),
-        ),
-        (
-            "Side".into(),
-            format!(
-                "{} {} {}",
-                order.transaction_type, order.order_type, order.product
-            ),
-        ),
-        (
-            "Qty".into(),
-            format!(
-                "{} filled / {} total ({} pending)",
-                order.filled_quantity, order.quantity, order.pending_quantity
-            ),
-        ),
-        ("Price".into(), format::price(order.price)),
-        ("Trigger".into(), format::price(order.trigger_price)),
-        ("Avg fill".into(), format::price(order.average_price)),
-        (
-            "Validity".into(),
-            crate::tui::data::order_validity_label(order),
-        ),
-        ("Variety".into(), order.variety.clone()),
-        ("Status".into(), order.status.clone()),
-    ];
-    if !crate::tui::data::order_kind_label(order).is_empty() {
-        rows.insert(
-            9,
-            (
-                "Kind".into(),
-                crate::tui::data::order_kind_label(order).to_string(),
-            ),
-        );
-    }
-
+    let rows = order_fields(order);
     let field_count = u16::try_from(rows.len()).unwrap_or(u16::MAX);
     let table = Table::new(
         rows.into_iter().map(|(key, value)| {
@@ -111,6 +73,59 @@ pub(super) fn draw_order_detail(frame: &mut Frame, state: &OrderDetailState, app
 
     let lines = order_history_lines(state);
     frame.render_widget(Paragraph::new(lines), history_area);
+}
+
+fn order_fields(order: &Order) -> Vec<(String, String)> {
+    let mut rows: Vec<(String, String)> = vec![
+        ("Time".into(), order.order_timestamp.to_string()),
+        (
+            "Symbol".into(),
+            format!("{}:{}", order.exchange, order.tradingsymbol),
+        ),
+        (
+            "Side".into(),
+            format!(
+                "{} {} {}",
+                order.transaction_type, order.order_type, order.product
+            ),
+        ),
+        (
+            "Qty".into(),
+            format!(
+                "{} filled / {} total ({} pending)",
+                order.filled_quantity, order.quantity, order.pending_quantity
+            ),
+        ),
+        ("Price".into(), format::price(order.price)),
+        ("Trigger".into(), format::price(order.trigger_price)),
+        ("Avg fill".into(), format::price(order.average_price)),
+        (
+            "Validity".into(),
+            crate::tui::data::order_validity_label(order),
+        ),
+        ("Variety".into(), order.variety.clone()),
+        ("Status".into(), order.status.clone()),
+        (
+            "Exch ID".into(),
+            order
+                .exchange_order_id
+                .clone()
+                .unwrap_or_else(|| "not assigned".into()),
+        ),
+    ];
+    if let Some(time) = order.exchange_timestamp {
+        rows.push(("Exch time".into(), time.to_string()));
+    }
+    if !crate::tui::data::order_kind_label(order).is_empty() {
+        rows.insert(
+            9,
+            (
+                "Kind".into(),
+                crate::tui::data::order_kind_label(order).to_string(),
+            ),
+        );
+    }
+    rows
 }
 
 fn order_history_lines(state: &OrderDetailState) -> Vec<Line<'static>> {

@@ -23,6 +23,10 @@ impl HoldingsKpis {
     fn day_pct(self) -> Option<f64> {
         (self.prev_value > 0.0).then_some(self.day_pnl / self.prev_value * 100.0)
     }
+
+    fn total_pct(self) -> Option<f64> {
+        (self.invested > 0.0).then_some(self.total_pnl / self.invested * 100.0)
+    }
 }
 
 fn holdings_kpis(holdings: &[Holding], ltp: impl Fn(u32) -> Option<f64>) -> HoldingsKpis {
@@ -107,7 +111,13 @@ pub(in crate::tui::ui) fn draw_kpis(frame: &mut Frame, area: Rect, app: &App) {
             headline_w,
             format::change_style(total).add_modifier(Modifier::BOLD),
         );
-        (value, None)
+        let sub = totals.total_pct().map(|pct| {
+            Line::from(Span::styled(
+                format::percent(pct),
+                format::change_style(total),
+            ))
+        });
+        (value, sub)
     } else {
         (unknown_value(), None)
     };
@@ -413,7 +423,7 @@ mod tests {
         assert_eq!(
             rows[2],
             "│          invested ₹8,50,000││                +0.26% today│\
-│                            ││                            │"
+│                      -1.12%││                            │"
         );
         assert_eq!(
             rows[3],
@@ -431,6 +441,36 @@ mod tests {
         let one = kpi_rows(&kpi_app(), 120, 3);
         assert!(one[1].contains("₹8,40,500"), "{:?}", one[1]);
         assert!(!one.join("\n").contains("invested"), "{one:#?}");
+    }
+
+    #[test]
+    fn the_total_pnl_tile_shows_its_percent_of_invested_value() {
+        let mut app = test_app();
+        let mut gain = pledged_holding("GAIN", 8, 0);
+        gain.average_price = 1_800.0;
+        gain.last_price = 1_945.0;
+        let mut loss = pledged_holding("LOSS", 69, 0);
+        loss.average_price = 20.0;
+        loss.last_price = 18.0;
+        app.holdings = Some(vec![gain, loss]);
+        // invested 14,400 + 1,380 = 15,780; P&L 1,160 - 138 = 1,022.
+        let rows = kpi_rows(&app, 120, 5);
+        let total_tile = |row: &str| row.chars().skip(60).take(30).collect::<String>();
+        assert_eq!(total_tile(&rows[1]), "│                     +₹1,022│");
+        assert_eq!(total_tile(&rows[2]), "│                      +6.48%│");
+    }
+
+    #[test]
+    fn the_total_pnl_percent_is_absent_without_a_cost_basis() {
+        let mut app = test_app();
+        let mut bonus = pledged_holding("BONUS", 10, 0);
+        bonus.average_price = 0.0;
+        bonus.last_price = 50.0;
+        app.holdings = Some(vec![bonus]);
+        let rows = kpi_rows(&app, 120, 5);
+        let total_tile = |row: &str| row.chars().skip(60).take(30).collect::<String>();
+        assert_eq!(total_tile(&rows[1]), "│                       +₹500│");
+        assert_eq!(total_tile(&rows[2]), "│                            │");
     }
 
     #[test]

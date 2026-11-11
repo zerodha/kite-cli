@@ -583,6 +583,8 @@ impl ChartId {
 pub enum ChartBinding {
     SelectionOf(PaneId),
     UnderlyingOf(PaneId),
+    /// An instrument picked from search, charted without joining a watchlist.
+    Instrument(u32),
 }
 
 impl ChartBinding {
@@ -597,9 +599,10 @@ impl ChartBinding {
         .then_some(Self::SelectionOf(pane))
     }
 
-    pub fn source(self) -> PaneId {
+    pub fn source(self) -> Option<PaneId> {
         match self {
-            Self::SelectionOf(pane) | Self::UnderlyingOf(pane) => pane,
+            Self::SelectionOf(pane) | Self::UnderlyingOf(pane) => Some(pane),
+            Self::Instrument(_) => None,
         }
     }
 }

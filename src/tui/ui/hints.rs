@@ -203,6 +203,14 @@ pub(super) fn hints_for(
                     ]
                 }
             }
+            SearchPurpose::OpenChart => {
+                const {
+                    &[
+                        nav(&["type to search", "↑↓:select"]),
+                        always(&["Enter:chart", "Esc:close"]),
+                    ]
+                }
+            }
         },
         Some(Modal::Palette(_)) => {
             const {
@@ -296,7 +304,24 @@ pub(super) fn hints_for(
                     ]
                 }
             }
-            PaneId::TradingChart | PaneId::DerivativesChart => {
+            PaneId::TradingChart => {
+                const {
+                    &[
+                        always(&["Ctrl-K:commands", "Tab:pane", "?:help"]),
+                        act(&["/:chart any"]),
+                        nav(&["h/l:scan"]),
+                        show(&[
+                            "i:interval",
+                            "v:volume",
+                            "I:indicator",
+                            "z:zoom",
+                            "=:dividers",
+                        ]),
+                        app(&["n:notes", "T:theme", "q:quit"]),
+                    ]
+                }
+            }
+            PaneId::DerivativesChart => {
                 const {
                     &[
                         always(&["Ctrl-K:commands", "Tab:pane", "?:help"]),
@@ -346,7 +371,7 @@ pub(super) fn hints_for(
                         trade(&["b:buy", "s:sell", "a:alert"]),
                         act(&["c:convert"]),
                         nav(&["j/k:move"]),
-                        show(&["S:sort", "r:refresh", "z:zoom", "=:dividers"]),
+                        show(&["Enter:chart", "S:sort", "r:refresh", "z:zoom", "=:dividers"]),
                         app(&["n:notes", "T:theme", "q:quit"]),
                     ]
                 }

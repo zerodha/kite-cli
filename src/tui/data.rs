@@ -39,7 +39,7 @@ pub fn fund_display_name(name: &str) -> &str {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct MfTotals {
+pub struct BookTotals {
     pub invested: f64,
     pub current: f64,
     pub pnl: f64,
@@ -47,7 +47,7 @@ pub struct MfTotals {
     pub prev_value: f64,
 }
 
-impl MfTotals {
+impl BookTotals {
     pub fn pnl_pct(&self) -> Option<f64> {
         (self.invested != 0.0).then(|| self.pnl / self.invested * 100.0)
     }
@@ -57,8 +57,8 @@ impl MfTotals {
     }
 }
 
-pub fn mf_totals(holdings: &[MfHolding]) -> MfTotals {
-    let mut totals = MfTotals::default();
+pub fn mf_totals(holdings: &[MfHolding]) -> BookTotals {
+    let mut totals = BookTotals::default();
     for h in holdings {
         totals.invested += crate::tui::data::mf_invested(h);
         totals.current += crate::tui::data::mf_current(h);

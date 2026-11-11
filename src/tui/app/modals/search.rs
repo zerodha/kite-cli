@@ -86,6 +86,9 @@ impl App {
                         SearchPurpose::AtoBasketItem => {
                             self.open_ato_item_new(inst);
                         }
+                        SearchPurpose::OpenChart => {
+                            self.open_instrument_chart(inst.instrument_token);
+                        }
                     }
                 }
                 return;

@@ -3,9 +3,10 @@ use super::headers::{holdings_header_sort, holdings_sort_targets};
 use super::inline_chart::{chart_split, draw_chart_panel};
 use super::table::{
     TableRows, record_header_hits, right, right_styled, selectable_table, sorted_title,
-    symbol_cell, symbol_cells, titles_fit,
+    symbol_cell, symbol_cells, totals_strip,
 };
 use crate::tui::app::{App, HoldingsSort};
+use crate::tui::data::BookTotals;
 
 use crate::tui::format;
 use crate::tui::ui;
@@ -13,8 +14,7 @@ use crate::tui::ui::columns::{self, FitCol, col, fit_constraints, fit_row, table
 use crate::tui::ui::pane::{BookList, InlineChartInput, PaneHits};
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::style::Style;
 use ratatui::widgets::Table;
 
 fn holding_pnl_pct(average_price: f64, qty: i64, ltp: f64) -> Option<f64> {
@@ -48,6 +48,14 @@ pub(super) const HOLDINGS_LABELS: [(&str, bool); 8] = [
     ("DAY%", true),
 ];
 
+const HOLDINGS_AVG: usize = 2;
+const HOLDINGS_LTP: usize = 3;
+
+fn holding_ltp(app: &App, holding: &crate::tui::data::Holding) -> f64 {
+    app.live_ltp(holding.instrument_token)
+        .unwrap_or(holding.last_price)
+}
+
 pub fn draw_holdings_pane(
     frame: &mut Frame,
     area: Rect,
@@ -73,10 +81,24 @@ pub fn draw_holdings_pane(
     let split = chart_split(area, &app.splits, chart.open);
     let (content_area, chart_area) = (split.table, split.chart);
     let targets = holdings_sort_targets();
-    let cols = columns::sort_floors(
+    let mut cols = columns::sort_floors(
         &HOLDINGS_COLS,
         &HOLDINGS_LABELS,
         &targets.map(|(idx, _)| idx),
+    );
+    columns::floor_to_cells(
+        &mut cols,
+        HOLDINGS_AVG,
+        holdings
+            .iter()
+            .map(|holding| format::price(holding.average_price).len()),
+    );
+    columns::floor_to_cells(
+        &mut cols,
+        HOLDINGS_LTP,
+        holdings
+            .iter()
+            .map(|holding| format::price(holding_ltp(app, holding)).len()),
     );
     let fit = columns::fit_columns(table_budget(content_area.width), 1, &cols);
     let layout = columns::spread(
@@ -93,33 +115,18 @@ pub fn draw_holdings_pane(
         )],
     );
     let sym_w = layout.width(0);
-    let (rows, total_value, total_pnl, total_day) =
-        holdings_rows(app, holdings, list.display, &fit, sym_w);
-    let title_style = format::change_style(total_pnl).add_modifier(Modifier::BOLD);
+    let (rows, totals) = holdings_rows(app, holdings, list.display, &fit, sym_w);
     let (header, marked) = columns::fit_header_sorted(
         &fit,
         &layout,
         &HOLDINGS_LABELS,
         holdings_header_sort(list.sort),
     );
-    let panel_title = sorted_title("Holdings", list.sort.label(), marked);
-    let totals = vec![
-        Span::styled(
-            format!(
-                " {} • total {} • day ",
-                format::inr(total_value),
-                format::signed_price(total_pnl)
-            ),
-            title_style,
-        ),
-        Span::styled(
-            format!("{} ", format::signed_price(total_day)),
-            format::change_style(total_day).add_modifier(Modifier::BOLD),
-        ),
-    ];
-    let mut block = ui::panel(list.title(&panel_title));
-    if titles_fit(content_area.width, &panel_title, &totals) {
-        block = block.title(Line::from(totals).right_aligned());
+    let panel_title = list.title(&sorted_title("Holdings", list.sort.label(), marked));
+    let strip = totals_strip(content_area.width, &panel_title, &totals);
+    let mut block = ui::panel(panel_title);
+    if let Some(strip) = strip {
+        block = block.title(strip);
     }
     let table = Table::new(rows, fit_constraints(&fit, &layout))
         .header(header)
@@ -151,17 +158,13 @@ fn holdings_rows(
     display: &[usize],
     fit: &columns::ColumnFit,
     sym_w: u16,
-) -> (Vec<ratatui::widgets::Row<'static>>, f64, f64, f64) {
-    let mut total_value = 0.0;
-    let mut total_pnl = 0.0;
-    let mut total_day = 0.0;
+) -> (Vec<ratatui::widgets::Row<'static>>, BookTotals) {
+    let mut totals = BookTotals::default();
     let mut rows = Vec::with_capacity(display.len());
     for &i in display {
         let holding = &holdings[i];
         let qty = crate::tui::data::holding_total_quantity(holding);
-        let ltp = app
-            .live_ltp(holding.instrument_token)
-            .unwrap_or(holding.last_price);
+        let ltp = holding_ltp(app, holding);
         #[expect(
             clippy::cast_precision_loss,
             reason = "holding value is display-only f64 arithmetic"
@@ -176,9 +179,16 @@ fn holdings_rows(
         };
         let has_pnl = crate::tui::data::holding_has_pnl(holding, Some(ltp));
         if has_pnl {
-            total_value += value;
-            total_pnl += pnl;
-            total_day += crate::tui::data::holding_live_day_pnl(holding, Some(ltp));
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "holding totals are display-only f64 arithmetic"
+            )]
+            let qty = qty as f64;
+            totals.invested += holding.average_price * qty;
+            totals.current += value;
+            totals.pnl += pnl;
+            totals.day_pnl += crate::tui::data::holding_live_day_pnl(holding, Some(ltp));
+            totals.prev_value += holding.close_price * qty;
         }
         rows.push(fit_row(
             fit,
@@ -232,7 +242,7 @@ fn holdings_rows(
             ],
         ));
     }
-    (rows, total_value, total_pnl, total_day)
+    (rows, totals)
 }
 
 #[cfg(test)]
@@ -253,5 +263,118 @@ mod holdings_tests {
     fn holding_pnl_pct_computes_change_independent_of_qty() {
         assert_eq!(holding_pnl_pct(100.0, 10, 150.0), Some(50.0));
         assert_eq!(holding_pnl_pct(100.0, 1_000_000, 150.0), Some(50.0));
+    }
+
+    fn app_with(holdings: Vec<crate::tui::data::Holding>) -> crate::tui::app::App {
+        let client = kiteconnect::KiteConnect::builder("test-key")
+            .access_token(kiteconnect::AccessToken::new("tok").unwrap())
+            .build()
+            .expect("dummy client builds");
+        let (events_tx, _events_rx) = tokio::sync::mpsc::channel(8);
+        let mut app = crate::tui::app::App::new(
+            client,
+            events_tx,
+            crate::tui::marketwatch::State::test_loaded(Vec::new()),
+            crate::tui::notes::Pad::default(),
+            false,
+            &crate::tui::settings::Settings::default(),
+        );
+        app.holdings = Some(holdings);
+        app
+    }
+
+    fn holding(
+        symbol: &str,
+        token: u32,
+        quantity: i64,
+        [average, last, close]: [f64; 3],
+    ) -> crate::tui::data::Holding {
+        let mut row = crate::tui::data::test_models::holding();
+        row.tradingsymbol = symbol.into();
+        row.exchange = "NSE".into();
+        row.instrument_token = token;
+        row.quantity = quantity;
+        row.t1_quantity = 0;
+        row.collateral_quantity = 0;
+        row.mtf = None;
+        row.average_price = average;
+        row.last_price = last;
+        row.close_price = close;
+        row.day_change = Some(last - close);
+        row.discrepancy = false;
+        row
+    }
+
+    fn title_at(app: &crate::tui::app::App, width: u16) -> String {
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, 6)).unwrap();
+        terminal
+            .draw(|frame| super::super::draw_holdings(frame, frame.area(), app))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        (0..width).map(|x| buffer[(x, 0)].symbol()).collect()
+    }
+
+    const FULL: &str = "inv ₹2,000 • cur ₹2,100 • +100.00 (+5.00%) • day +50.00 (+2.44%)";
+    const NO_INVESTED: &str = "cur ₹2,100 • +100.00 (+5.00%) • day +50.00 (+2.44%)";
+    const PNL_ONLY: &str = "+100.00 (+5.00%) • day +50.00 (+2.44%)";
+
+    fn summary_app() -> crate::tui::app::App {
+        // Invested 10 x 100 + 5 x 200 = 2,000; current 10 x 120 + 5 x 180 = 2,100.
+        // Day 10 x 10 - 5 x 10 = 50 on a previous close of 10 x 110 + 5 x 190 = 2,050.
+        app_with(vec![
+            holding("GAINER", 1, 10, [100.0, 120.0, 110.0]),
+            holding("LOSER", 2, 5, [200.0, 180.0, 190.0]),
+        ])
+    }
+
+    #[test]
+    fn the_holdings_title_summarises_invested_current_pnl_and_day_change() {
+        let title = title_at(&summary_app(), 160);
+        assert!(title.contains(FULL), "{title:?}");
+    }
+
+    #[test]
+    fn a_narrow_holdings_title_drops_invested_then_current_value() {
+        let app = summary_app();
+        let mut seen = [false; 3];
+        for width in 20..=160u16 {
+            let title = title_at(&app, width);
+            let variant = if title.contains(FULL) {
+                0
+            } else if title.contains(NO_INVESTED) {
+                1
+            } else if title.contains(PNL_ONLY) {
+                2
+            } else {
+                assert!(!title.contains("day"), "width {width}: {title:?}");
+                continue;
+            };
+            assert!(
+                seen[..variant].iter().all(|richer| !richer),
+                "width {width} shows less than a narrower width: {title:?}"
+            );
+            seen[variant] = true;
+        }
+        assert_eq!(seen, [true; 3]);
+    }
+
+    #[test]
+    fn a_price_above_ten_lakh_is_drawn_whole() {
+        let app = app_with(vec![holding(
+            "MRF",
+            1,
+            1,
+            [987_654.32, 1_234_567.89, 1_200_000.0],
+        )]);
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 6)).unwrap();
+        terminal
+            .draw(|frame| super::super::draw_holdings(frame, frame.area(), &app))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let row: String = (0..120).map(|x| buffer[(x, 2)].symbol()).collect();
+        assert!(row.contains("9,87,654.32"), "{row:?}");
+        assert!(row.contains("12,34,567.89"), "{row:?}");
     }
 }

@@ -3,6 +3,28 @@
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.2] - 2026-11-11
+
+### Added
+
+- Press `Enter` on Positions to open the selected position's chart.
+- Chart any instrument without adding it to a watchlist: press `/` on the Trading chart pane, or run **Chart any instrument…** from the command palette.
+- Holdings shows an invested, current, P&L and day change summary like Mutual funds.
+- The order detail popup shows the exchange order ID and exchange time. Orders that never reached the exchange, such as rejected orders, show `not assigned`.
+- `kite doctor` reports when a newer release is available. `--no-live` skips the check, and a failed check does not fail `doctor`.
+- `kite upgrade` installs the latest release, or `--version X`, by running the official installer from that release's tag. `kite upgrade --check` only reports whether an update exists. Nix store and symlinked installs are refused; on Windows it prints the installer command to run after `kite` exits.
+
+### Changed
+
+- The Overview Positions panel shows each position's P&L% against its average price, signed for shorts, instead of the instrument's day change. Closed positions show no percentage.
+- The Overview Total P&L tile shows the holdings P&L as a percentage of invested value.
+
+### Fixed
+
+- Positions counts a closed position's P&L as realised. Kite reports `realised` as `0` for positions squared off today, so the summary showed it as unrealised.
+- Closed positions show their symbol and P&L greyed out.
+- Prices with six or more digits are no longer cut off in the watchlist, orders, GTT, holdings and depth panes.
+
 ## [0.2.1] - 2026-10-27
 
 ### Fixed

@@ -5,6 +5,7 @@ kite 0.1.0
 ✓ User ID    set
 ✓ Session    set
 – Kite API   skipped (--no-live)
+– Release    skipped (--no-live)
 
 API root  http://fixture.invalid
 Ticker    ws://fixture.invalid

@@ -35,6 +35,15 @@ irm https://raw.githubusercontent.com/zerodha/kite-cli/main/scripts/install.ps1 
 
 See [Installation](docs/INSTALL.md) for manual archive downloads, custom install paths (`KITE_INSTALL_DIR`), and verification details.
 
+### Upgrading
+
+```sh
+kite upgrade --check   # report whether a newer release exists
+kite upgrade           # install it with the official installer
+```
+
+`kite doctor` also reports when a newer release is available. If you installed `kite` with Nix or another package manager, upgrade it with that package manager. Re-running the install command above also upgrades to the latest release.
+
 ## Quickstart
 
 **1. Launch the terminal workspace**

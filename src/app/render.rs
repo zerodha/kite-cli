@@ -1212,6 +1212,22 @@ pub(crate) fn doctor(value: &Value, doc: &mut Doc) {
     };
     let ok = checked.then(|| api["ok"].as_bool()).flatten();
     checklist(doc, "Kite API", ok, &detail);
+    let update = &value["update"];
+    let (pass, detail) = if update["checked"] != true {
+        let reason = match s(update, "reason") {
+            "skipped" => "--no-live",
+            reason => reason,
+        };
+        (None, format!("skipped ({reason})"))
+    } else if update["update_available"] == true {
+        (None, format!("{} available", s(update, "latest")))
+    } else {
+        (
+            Some(true),
+            format!("up to date (latest {})", s(update, "latest")),
+        )
+    };
+    checklist(doc, "Release", pass, &detail);
     doc.blank().fields(vec![
         ("API root", field(value, "api_root")),
         ("Ticker", field(value, "ticker_url")),
@@ -1224,11 +1240,48 @@ pub(crate) fn doctor(value: &Value, doc: &mut Doc) {
         }
         .into(),
     ]);
+    if update["update_available"] == true {
+        doc.line(vec![update_available(update).into()]);
+    }
     if value["setup"]
         .as_array()
         .is_some_and(|steps| steps.iter().any(|step| step == "run `kite auth login`"))
     {
         doc.hint("run `kite auth login`");
+    }
+}
+
+fn update_available(update: &Value) -> String {
+    format!(
+        "kite {} is available (installed {}). Run `kite upgrade`.",
+        s(update, "latest"),
+        s(update, "installed")
+    )
+}
+
+pub(crate) fn upgrade(value: &Value, doc: &mut Doc) {
+    if value["upgraded"] == true {
+        doc.success(&format!(
+            "Upgraded kite {} to {} in {}",
+            s(value, "from"),
+            s(value, "to"),
+            s(value, "install_dir")
+        ));
+    } else if value["update_available"] == true {
+        doc.line(vec![update_available(value).into()]);
+    } else if value["latest"] == value["installed"] {
+        doc.line(vec![
+            format!("kite {} is up to date.", s(value, "installed")).into(),
+        ]);
+    } else {
+        doc.line(vec![
+            format!(
+                "kite {} is up to date (latest release {}).",
+                s(value, "installed"),
+                s(value, "latest")
+            )
+            .into(),
+        ]);
     }
 }
 

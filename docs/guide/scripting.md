@@ -108,6 +108,12 @@ $ kite --json portfolio holdings
 kite --json doctor | jq -e .ok
 ```
 
+`kite upgrade --check` exits with `0` whether or not a newer release exists, and with `1` only when the release lookup fails. Read `update_available` from its JSON output:
+
+```bash
+kite --json upgrade --check | jq -e .update_available
+```
+
 ## `stdout` and `stderr` separation
 
 - **`stdout`** carries only primary command output: tables, key-value records, JSON payloads, and dry-run previews.

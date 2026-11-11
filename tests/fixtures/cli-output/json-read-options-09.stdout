@@ -32,5 +32,11 @@
   "ok": true,
   "setup": [],
   "ticker_url": "ws://fixture.invalid",
+  "update": {
+    "checked": true,
+    "installed": "0.1.0",
+    "latest": "0.1.0",
+    "update_available": false
+  },
   "version": "0.1.0"
 }

@@ -43,6 +43,20 @@ To install a specific version, set `KITE_VERSION` (shell) or pass `-Version` (Po
 curl -fsSL https://raw.githubusercontent.com/zerodha/kite-cli/main/scripts/install.sh | KITE_VERSION=0.1.0 sh
 ```
 
+## Upgrading
+
+```sh
+kite upgrade --check            # report whether a newer release exists
+kite upgrade                    # upgrade to the latest release
+kite upgrade --version 0.2.1    # install a specific release, including an older one
+```
+
+`kite doctor` also reports when a newer release is available.
+
+`kite upgrade` downloads the installer from the target release's tag and runs it with `KITE_VERSION` and `KITE_INSTALL_DIR` set to the directory of the running `kite`, so it replaces that binary in place. It refuses binaries in the Nix store or reached through a symlink: upgrade those with your package manager. On Windows, a running `kite.exe` cannot be replaced, so `kite upgrade` prints the PowerShell command to run after `kite` exits.
+
+Re-running the install command also upgrades. Without `KITE_INSTALL_DIR` it picks a directory as described above, which may differ from where your current `kite` lives. If both directories are on `PATH`, whichever comes first wins, and the old binary can shadow the new one. Check with `command -v kite` and `kite --version`.
+
 ## Verify your installation
 
 After installing, launch the full-screen terminal UI directly:

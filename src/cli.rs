@@ -1,3 +1,4 @@
+use crate::app::release::Version;
 use clap::builder::TypedValueParser;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
@@ -44,15 +45,20 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Verify install, config, auth sources, and read-only API reachability.
+    /// Verify install, config, auth sources, read-only API reachability, and newer releases.
     #[command(
         after_long_help = "Examples:\n  kite doctor\n  kite doctor --no-live\n\n`doctor` never prints full credentials. Without auth it reports setup steps instead of failing early."
     )]
     Doctor {
-        /// Skip the live /user/margins auth check even if a session is present.
+        /// Skip the live /user/margins auth check and the GitHub release check.
         #[arg(long)]
         no_live: bool,
     },
+    /// Upgrade kite to the latest release with the official installer.
+    #[command(
+        after_long_help = "Examples:\n  kite upgrade --check\n  kite upgrade\n  kite upgrade --version 0.2.1\n\n`upgrade` downloads scripts/install.sh (install.ps1 on Windows) from the target release tag and runs it for the directory that holds this kite binary. It refuses binaries from the Nix store or reached through a symlink, as package managers install them; upgrade those with the package manager. On Windows it prints the PowerShell installer command to run after kite exits, because a running kite.exe cannot be replaced.\n\n`--check` exits 0 whether or not an update exists and 1 only when the release lookup fails. Use `kite --json upgrade --check` and read `update_available` in scripts."
+    )]
+    Upgrade(UpgradeArgs),
     /// Manage the kite config file (see `kite config path`).
     #[command(
         after_long_help = "Examples:\n  kite config path\n  kite config show\n  kite config show --reveal"
@@ -141,6 +147,20 @@ pub enum Commands {
         #[command(subcommand)]
         command: RequestCommands,
     },
+}
+
+#[derive(Args, Debug)]
+pub struct UpgradeArgs {
+    /// Only report whether a newer release exists.
+    #[arg(long, conflicts_with = "version")]
+    pub check: bool,
+    /// Install this release instead of the latest, for example 0.2.1. Can also downgrade.
+    #[arg(long, value_name = "VERSION", value_parser = parse_release_version)]
+    pub version: Option<Version>,
+}
+
+fn parse_release_version(raw: &str) -> Result<Version, String> {
+    Version::parse(raw).map_err(|error| error.to_string())
 }
 
 #[derive(Subcommand, Debug)]

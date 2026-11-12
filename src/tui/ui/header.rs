@@ -313,9 +313,9 @@ mod tests {
         let strip = strip(WsState::Connected, Some(50_000.0), 64);
         assert_eq!(
             strip,
-            "● live | open | 10:30:00 | ₹50,000 available | up 1m 20s "
+            "● live | open | 10:30:00 | ₹50,000.00 available | up 1m 20s "
         );
-        assert_eq!(format::display_width(&strip), 57);
+        assert_eq!(format::display_width(&strip), 60);
     }
 
     #[test]
@@ -607,7 +607,7 @@ mod tests {
             " kite  1 Overview  2 Trading  3 Portfolio  4 Option Chain  5 Orders  6 IPO & Bids";
         let row160 = header_canvas(&app, 160);
         assert!(row160.starts_with(keyed), "{row160:?}");
-        assert!(row160.ends_with("● live | open | 10:30:00 | ₹50,000 available | up 1m 20s "));
+        assert!(row160.ends_with("● live | open | 10:30:00 | ₹50,000.00 available | up 1m 20s "));
         let row120 = header_canvas(&app, 120);
         assert!(row120.starts_with(keyed), "{row120:?}");
         assert!(

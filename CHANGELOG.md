@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `kite orders place` refuses orders that are incomplete as written, in dry runs and with `--confirm`: a LIMIT or SL order without a positive `--price`, an SL or SL-M order without a positive `--trigger-price`, `--variety iceberg` without `--iceberg-legs`, `--variety auction` without `--auction-number`, `--validity TTL` without `--validity-ttl`, and iceberg or TTL flags given without their variety or validity. It previously printed a dry run and exited 0.
 - `kite orders place` and `kite orders modify` refuse a zero or negative `--quantity` and a negative `--disclosed-quantity`.
 - An autoslice order placed from the TUI order ticket shows an error toast when Kite rejects a slice. The toast counts the failed slices and gives each one's reason. It previously showed only the first order ID as placed. This also covers orders the ticket slices by itself above the freeze quantity.
+- The TUI shows rupee totals to the paisa, as Kite does: the Positions P&L summary, the Overview tiles and panel totals, the Holdings title, Funds and the available margin in the header. They were rounded to whole rupees, so a P&L of +619.16 read +₹619.
 
 ## [0.2.3] - 2026-11-12
 

@@ -272,7 +272,7 @@ mod tests {
 
         assert_eq!(
             text(money_value(840_500.0, &format::inr(840_500.0), 18, plain)),
-            "₹8,40,500"
+            "₹8,40,500.00"
         );
         assert_eq!(
             text(money_value(big, &format::inr(big), 10, plain)),
@@ -408,7 +408,7 @@ mod tests {
         let rows = kpi_rows(&kpi_app(), 80, 3);
         assert_eq!(
             rows[1],
-            "│         ₹8,40,500││           +₹2,150││           -₹9,500││           ₹50,000│"
+            "│      ₹8,40,500.00││        +₹2,150.00││        -₹9,500.00││        ₹50,000.00│"
         );
     }
 
@@ -417,12 +417,12 @@ mod tests {
         let rows = kpi_rows(&kpi_app(), 120, 5);
         assert_eq!(
             rows[1],
-            "│                   ₹8,40,500││                     +₹2,150│\
-│                     -₹9,500││                     ₹50,000│"
+            "│                ₹8,40,500.00││                  +₹2,150.00│\
+│                  -₹9,500.00││                  ₹50,000.00│"
         );
         assert_eq!(
             rows[2],
-            "│          invested ₹8,50,000││                +0.26% today│\
+            "│       invested ₹8,50,000.00││                +0.26% today│\
 │                      -1.12%││                            │"
         );
         assert_eq!(
@@ -456,7 +456,7 @@ mod tests {
         // invested 14,400 + 1,380 = 15,780; P&L 1,160 - 138 = 1,022.
         let rows = kpi_rows(&app, 120, 5);
         let total_tile = |row: &str| row.chars().skip(60).take(30).collect::<String>();
-        assert_eq!(total_tile(&rows[1]), "│                     +₹1,022│");
+        assert_eq!(total_tile(&rows[1]), "│                  +₹1,022.00│");
         assert_eq!(total_tile(&rows[2]), "│                      +6.48%│");
     }
 
@@ -469,7 +469,7 @@ mod tests {
         app.holdings = Some(vec![bonus]);
         let rows = kpi_rows(&app, 120, 5);
         let total_tile = |row: &str| row.chars().skip(60).take(30).collect::<String>();
-        assert_eq!(total_tile(&rows[1]), "│                       +₹500│");
+        assert_eq!(total_tile(&rows[1]), "│                    +₹500.00│");
         assert_eq!(total_tile(&rows[2]), "│                            │");
     }
 
@@ -489,7 +489,7 @@ mod tests {
         let rows = kpi_rows(&app, 80, 3);
         assert_eq!(
             rows[1],
-            "│                ₹0││               +₹0││               +₹0││                 ?│"
+            "│             ₹0.00││            +₹0.00││            +₹0.00││                 ?│"
         );
     }
 

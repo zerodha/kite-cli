@@ -616,12 +616,15 @@ mod tests {
                     .unwrap();
                 let buffer = terminal.backend().buffer().clone();
                 for y in 0..8 {
-                    let row: String = (0..width).map(|x| buffer[(x, y)].symbol()).collect();
+                    let row: String = (0..width)
+                        .map(|x| buffer[(x, y)].symbol())
+                        .collect::<String>()
+                        .replace('₹', "");
                     for (full, tail) in [
                         ("+3,58,831.05", "58,831.05"),
                         ("30,000.00", ",000.00"),
                         ("6,077.93", "077.93"),
-                        ("₹4,50,000", "50,000"),
+                        ("4,50,000.00", "50,000"),
                     ] {
                         assert!(
                             row.contains(full) || !row.contains(tail),

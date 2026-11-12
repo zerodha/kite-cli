@@ -330,7 +330,7 @@ fn a_closed_position_books_its_pnl_as_realized() {
     ]);
     let text = screen(&app, W, H);
     assert!(text.contains("realized -₹650"), "{text}");
-    assert!(text.contains("unrealized -₹1 "), "{text}");
+    assert!(text.contains("unrealized -₹1.00 "), "{text}");
 }
 
 #[tokio::test]

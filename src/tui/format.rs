@@ -67,18 +67,11 @@ pub fn whole_price(value: f64) -> String {
 }
 
 pub fn inr(value: f64) -> String {
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "rounded absolute rupees use saturating float conversion"
-    )]
-    let rounded = value.abs().round() as u64;
-    let negative = value < 0.0 && rounded != 0;
-    format!(
-        "{}₹{}",
-        if negative { "-" } else { "" },
-        group_indian(rounded)
-    )
+    let text = price(value);
+    match text.strip_prefix('-') {
+        Some(magnitude) => format!("-₹{magnitude}"),
+        None => format!("₹{text}"),
+    }
 }
 
 pub fn fit_money(value: f64, full: &str, width: usize) -> String {
@@ -682,10 +675,12 @@ mod tests {
     }
 
     #[test]
-    fn inr_drops_sign_on_tiny_negatives_that_round_to_zero() {
-        assert_eq!(inr(-0.49), "₹0");
-        assert_eq!(inr(0.0), "₹0");
-        assert_eq!(inr(-0.51), "-₹1");
+    fn inr_shows_paise_and_drops_sign_on_tiny_negatives_that_round_to_zero() {
+        assert_eq!(inr(-0.004), "₹0.00");
+        assert_eq!(inr(0.0), "₹0.00");
+        assert_eq!(inr(-0.51), "-₹0.51");
+        assert_eq!(inr(619.164), "₹619.16");
+        assert_eq!(inr(840_500.0), "₹8,40,500.00");
     }
 
     #[test]

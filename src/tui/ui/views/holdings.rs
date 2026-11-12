@@ -315,8 +315,8 @@ mod holdings_tests {
         (0..width).map(|x| buffer[(x, 0)].symbol()).collect()
     }
 
-    const FULL: &str = "inv ₹2,000 • cur ₹2,100 • +100.00 (+5.00%) • day +50.00 (+2.44%)";
-    const NO_INVESTED: &str = "cur ₹2,100 • +100.00 (+5.00%) • day +50.00 (+2.44%)";
+    const FULL: &str = "inv ₹2,000.00 • cur ₹2,100.00 • +100.00 (+5.00%) • day +50.00 (+2.44%)";
+    const NO_INVESTED: &str = "cur ₹2,100.00 • +100.00 (+5.00%) • day +50.00 (+2.44%)";
     const PNL_ONLY: &str = "+100.00 (+5.00%) • day +50.00 (+2.44%)";
 
     fn summary_app() -> crate::tui::app::App {

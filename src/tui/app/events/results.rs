@@ -1,16 +1,28 @@
 use super::super::{App, SESSION_EXPIRED, ToastLevel};
-use crate::tui::data;
+use crate::tui::data::{self, OrderReply};
 
 impl App {
     pub(in crate::tui::app) fn on_order_result(
         &mut self,
         verb: &str,
-        result: Result<String, String>,
+        result: Result<OrderReply, String>,
     ) {
         self.pending_action = false;
         match result {
-            Ok(order_id) => {
+            Ok(OrderReply {
+                order_id,
+                slice_problems: None,
+            }) => {
                 self.toast(ToastLevel::Success, format!("order {verb}: {order_id}"));
+            }
+            Ok(OrderReply {
+                order_id,
+                slice_problems: Some(problems),
+            }) => {
+                self.toast(
+                    ToastLevel::Error,
+                    format!("order {verb}: {order_id}, {problems}"),
+                );
             }
             Err(err) => {
                 self.toast(

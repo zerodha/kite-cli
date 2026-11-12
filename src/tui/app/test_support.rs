@@ -5,6 +5,7 @@ use super::{
 use crate::tui::alerts::{self, Attribute, Operator};
 use crate::tui::data::Alert;
 use crate::tui::data::{Holding, Order, Position};
+use crate::tui::event::AppEvent;
 use crate::tui::form::ControlIntent;
 use crate::tui::instruments::Instrument;
 use crate::tui::marketwatch::State as WatchState;
@@ -23,15 +24,32 @@ pub(super) fn test_app() -> App {
         .access_token(kiteconnect::AccessToken::new("tok").unwrap())
         .build()
         .expect("dummy client builds");
-    let (events_tx, _events_rx) = mpsc::channel(8);
-    App::new(
+    app_with(client).0
+}
+
+/// An app whose Kite requests go to `server`, and the receiver for its events.
+pub(in crate::tui::app) fn mock_app(
+    server: &httpmock::MockServer,
+) -> (App, mpsc::Receiver<AppEvent>) {
+    let client = KiteConnect::builder("test-key")
+        .access_token(kiteconnect::AccessToken::new("tok").unwrap())
+        .base_url(server.base_url())
+        .build()
+        .expect("mock client builds");
+    app_with(client)
+}
+
+fn app_with(client: KiteConnect) -> (App, mpsc::Receiver<AppEvent>) {
+    let (events_tx, events_rx) = mpsc::channel(8);
+    let app = App::new(
         client,
         events_tx,
         WatchState::test_loaded(Vec::new()),
         Pad::default(),
         false,
         &Settings::default(),
-    )
+    );
+    (app, events_rx)
 }
 
 pub(super) fn holding(

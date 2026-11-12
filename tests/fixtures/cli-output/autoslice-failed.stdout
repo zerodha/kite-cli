@@ -1,0 +1,6 @@
+! Order submitted, 1 of 4 slices failed  BUY 1 NSE:INFY  LIMIT @ 1500  CNC  DAY
+  Order ID  1914227164488687616
+  Slice 1   1914227164534824960
+  Slice 2   1914227164580962304
+  Slice 3   failed: Insufficient funds. Required margin is 228365.92 but available margin is 228358.50. (MarginException)
+  Slice 4   1914227164681625600

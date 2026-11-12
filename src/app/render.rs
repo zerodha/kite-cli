@@ -1313,13 +1313,39 @@ pub(crate) fn write_result(value: &Value, headline: &str, summary: &str, doc: &m
         doc.dry_run(summary, value);
         return;
     }
-    doc.success(&if summary.is_empty() {
-        headline.into()
+    let slices = slices(value);
+    let unreadable = !value["children"].is_null() && !value["children"].is_array();
+    let failed = slices.iter().filter(|slice| slice.is_err()).count();
+    let headline = if unreadable {
+        format!("{headline}, could not read slice results")
+    } else if failed == 0 {
+        headline.to_string()
+    } else {
+        format!("{headline}, {failed} of {} slices failed", slices.len())
+    };
+    let headline = if summary.is_empty() {
+        headline
     } else {
         format!("{headline}  {summary}")
-    });
+    };
+    if failed == 0 && !unreadable {
+        doc.success(&headline);
+    } else {
+        doc.line(vec![Cell::from("!").tone(Tone::Warn), headline.into()]);
+    }
     if let Some(id) = value.get("order_id") {
-        doc.fields(vec![("  Order ID", scalar(id).into())]);
+        let labels: Vec<String> = (1..=slices.len())
+            .map(|number| format!("  Slice {number}"))
+            .collect();
+        let mut rows = vec![("  Order ID", scalar(id).into())];
+        for (label, slice) in labels.iter().zip(slices) {
+            let cell = match slice {
+                Ok(id) => Cell::from(id),
+                Err(reason) => Cell::from(reason).tone(Tone::Bad),
+            };
+            rows.push((label.as_str(), cell));
+        }
+        doc.fields(rows);
         doc.hint(&format!(
             "check its status with `kite orders get {}`",
             scalar(id)
@@ -1329,6 +1355,34 @@ pub(crate) fn write_result(value: &Value, headline: &str, summary: &str, doc: &m
     } else if !value.is_boolean() && !value.is_null() {
         generic(value, doc);
     }
+}
+
+/// Each autoslice child order, if the response has any.
+fn slices(value: &Value) -> Vec<Result<String, String>> {
+    let children = value["children"].as_array().into_iter().flatten();
+    children.map(slice).collect()
+}
+
+/// A child's order ID, or why Kite did not place it.
+fn slice(child: &Value) -> Result<String, String> {
+    let error = &child["error"];
+    if error.is_null()
+        && let Some(id) = child["order_id"]
+            .as_str()
+            .map(clean)
+            .filter(|id| !id.trim().is_empty())
+    {
+        return Ok(id);
+    }
+    let message = error["message"]
+        .as_str()
+        .map(kiteconnect::error::sanitize_error);
+    Err(match (message, error["error_type"].as_str()) {
+        (Some(message), Some(kind)) => format!("failed: {message} ({kind})"),
+        (Some(message), None) => format!("failed: {message}"),
+        (None, Some(kind)) => format!("failed: {kind}"),
+        (None, None) => "failed".into(),
+    })
 }
 
 pub(crate) fn tick_header(out: &mut impl Write, symbol_width: usize, term: Term) -> io::Result<()> {
@@ -1434,6 +1488,111 @@ pub(crate) fn prompt(message: &str) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn autoslice_errors_and_malformed_ids_stay_visible() {
+        let value = serde_json::json!({"order_id":"parent", "children":[
+            {"order_id":"child", "error":{"message":"Rejected", "error_type":"OrderException"}},
+            {"order_id":false},
+            {"order_id":{}},
+            {"order_id":[]},
+            {"order_id":123},
+            {"order_id":""},
+            {"order_id":"\u{0000}\u{001b}\n"},
+            {"order_id":null},
+            {},
+            null,
+            {"error":{"error_type":"InputException"}},
+            {"error":{}},
+            {"order_id":"ok\tid", "error":null},
+            {"error":{"message":"denied\naccess_token=secret", "error_type":"Bad\rKind"}}
+        ]});
+        let mut doc = Doc::default();
+        write_result(&value, "Order submitted", "", &mut doc);
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        doc.write(&mut out, Term::default(), &mut err, Term::default())
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            concat!(
+                "! Order submitted, 13 of 14 slices failed\n",
+                "  Order ID  parent\n",
+                "  Slice 1   failed: Rejected (OrderException)\n",
+                "  Slice 2   failed\n",
+                "  Slice 3   failed\n",
+                "  Slice 4   failed\n",
+                "  Slice 5   failed\n",
+                "  Slice 6   failed\n",
+                "  Slice 7   failed\n",
+                "  Slice 8   failed\n",
+                "  Slice 9   failed\n",
+                "  Slice 10  failed\n",
+                "  Slice 11  failed: InputException\n",
+                "  Slice 12  failed\n",
+                "  Slice 13  ok id\n",
+                "  Slice 14  failed: denied access_token=<redacted> (Bad Kind)\n"
+            )
+        );
+        assert_eq!(
+            err,
+            b"hint: check its status with `kite orders get parent`\n"
+        );
+    }
+
+    #[test]
+    fn absent_null_and_empty_children_keep_the_existing_order_output() {
+        for value in [
+            serde_json::json!({"order_id":"parent"}),
+            serde_json::json!({"order_id":"parent", "children":null}),
+            serde_json::json!({"order_id":"parent", "children":[]}),
+        ] {
+            let mut doc = Doc::default();
+            write_result(&value, "Order submitted", "BUY 1", &mut doc);
+            let mut out = Vec::new();
+            let mut err = Vec::new();
+            doc.write(&mut out, Term::default(), &mut err, Term::default())
+                .unwrap();
+            assert_eq!(
+                String::from_utf8(out).unwrap(),
+                "✓ Order submitted  BUY 1\n  Order ID  parent\n"
+            );
+            assert_eq!(
+                err,
+                b"hint: check its status with `kite orders get parent`\n"
+            );
+        }
+    }
+
+    #[test]
+    fn non_array_children_warn_without_inventing_slice_counts() {
+        for children in [
+            serde_json::json!({"error":{"message":"Rejected"}}),
+            serde_json::json!("Rejected"),
+            serde_json::json!(false),
+            serde_json::json!(42),
+        ] {
+            let mut doc = Doc::default();
+            write_result(
+                &serde_json::json!({"order_id":"parent", "children":children}),
+                "Order submitted",
+                "BUY 1",
+                &mut doc,
+            );
+            let mut out = Vec::new();
+            let mut err = Vec::new();
+            doc.write(&mut out, Term::default(), &mut err, Term::default())
+                .unwrap();
+            assert_eq!(
+                String::from_utf8(out).unwrap(),
+                "! Order submitted, could not read slice results  BUY 1\n  Order ID  parent\n"
+            );
+            assert_eq!(
+                err,
+                b"hint: check its status with `kite orders get parent`\n"
+            );
+        }
+    }
 
     #[test]
     fn ticker_fixture_prints_a_fixed_width_line_and_reuses_quote_arithmetic() {

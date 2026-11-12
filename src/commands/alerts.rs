@@ -154,7 +154,11 @@ async fn params(
             symbol,
             args.rhs_attribute
                 .as_deref()
-                .or_else(|| current.and_then(|alert| alert.rhs_attribute.as_deref()))
+                .or_else(|| {
+                    current
+                        .filter(|alert| alert.rhs_type == "instrument")
+                        .and_then(|alert| alert.rhs_attribute.as_deref())
+                })
                 .unwrap_or("LastTradedPrice"),
         ));
     }

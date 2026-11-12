@@ -1603,6 +1603,48 @@ fn alerts_modify_preserves_disabled_instrument_conditions_and_allows_rhs_changes
 }
 
 #[test]
+fn alerts_modify_switching_a_constant_alert_to_an_instrument_defaults_the_rhs_attribute() {
+    let setup = Setup::new();
+    cache_alert_instruments(&setup);
+    // Kite returns empty strings for the instrument fields of a constant alert.
+    setup.server.mock(|when, then| {
+        when.method(GET).path(format!("/alerts/{ALERT_UUID}"));
+        then.status(200).body(fixture("alerts_get_one.json"));
+    });
+    let expected = json!({"name":"NIFTY 50","type":"simple","status":"enabled","lhs_exchange":"INDICES","lhs_tradingsymbol":"NIFTY 50","lhs_attribute":"LastTradedPrice","operator":">=","rhs_type":"instrument","rhs_exchange":"NSE","rhs_tradingsymbol":"INFY","rhs_attribute":"LastTradedPrice"});
+    let mock = setup.server.mock(|mut when, then| {
+        when = when
+            .method(PUT)
+            .path(format!("/alerts/{ALERT_UUID}"))
+            .form_urlencoded_tuple_count(".*", ".*", 11);
+        for (key, value) in expected.as_object().unwrap() {
+            when = when.form_urlencoded_tuple(key, value.as_str().unwrap());
+        }
+        then.status(200).body(fixture("alerts_modify.json"));
+    });
+    let args = ["alerts", "modify", ALERT_UUID, "--rhs", "NSE:INFY"];
+    let dry = setup.run(Path::new(env!("CARGO_BIN_EXE_kite")), &args, true);
+    assert_eq!(
+        dry.status.code(),
+        Some(0),
+        "{}",
+        setup.normalized(&dry.stderr)
+    );
+    let value: Value = serde_json::from_slice(&dry.stdout).unwrap();
+    assert_eq!(value["body"]["form"], expected);
+    mock.assert_calls(0);
+    let confirmed = [&args[..], &["--confirm"]].concat();
+    let result = setup.run(Path::new(env!("CARGO_BIN_EXE_kite")), &confirmed, false);
+    assert_eq!(
+        result.status.code(),
+        Some(0),
+        "{}",
+        setup.normalized(&result.stderr)
+    );
+    mock.assert_calls(1);
+}
+
+#[test]
 fn alerts_status_changes_preserve_ato_type_and_reject_ato_edits() {
     let setup = Setup::new();
     let body: Value = serde_json::from_str(&fixture("alerts_get.json")).unwrap();

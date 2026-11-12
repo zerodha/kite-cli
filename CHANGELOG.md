@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- An autoslice order placed from the TUI order ticket shows an error toast when Kite rejects a slice. The toast counts the failed slices and gives each one's reason. It previously showed only the first order ID as placed. This also covers orders the ticket slices by itself above the freeze quantity.
+
 ## [0.2.3] - 2026-11-12
 
 ### Changed

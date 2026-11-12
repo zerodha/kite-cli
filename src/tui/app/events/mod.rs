@@ -5,7 +5,7 @@ use super::panes::chain::today_ist;
 use super::{App, Book, Modal, ToastLevel};
 use crate::tui::bids;
 use crate::tui::candles::SeriesKey;
-use crate::tui::data::{self, DataEvent};
+use crate::tui::data::{self, DataEvent, OrderReply};
 use crate::tui::event::AppEvent;
 use crate::tui::workspace::PaneId;
 
@@ -298,7 +298,13 @@ impl App {
                 self.pump_candles();
             }
             DataEvent::OrderPlaced(result) => self.on_order_result("placed", result),
-            DataEvent::OrderModified(result) => self.on_order_result("modified", result),
+            DataEvent::OrderModified(result) => self.on_order_result(
+                "modified",
+                result.map(|order_id| OrderReply {
+                    order_id,
+                    slice_problems: None,
+                }),
+            ),
             DataEvent::PositionConverted(result) => self.on_position_conversion(result),
             DataEvent::HoldingsAuthorised(result) => self.on_holdings_authorised(result),
             DataEvent::OrdersCancelled(result) => self.on_orders_cancelled(&result),

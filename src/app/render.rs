@@ -1314,21 +1314,17 @@ pub(crate) fn write_result(value: &Value, headline: &str, summary: &str, doc: &m
         return;
     }
     let slices = slices(value);
-    let unreadable = !value["children"].is_null() && !value["children"].is_array();
-    let failed = slices.iter().filter(|slice| slice.is_err()).count();
-    let headline = if unreadable {
-        format!("{headline}, could not read slice results")
-    } else if failed == 0 {
-        headline.to_string()
-    } else {
-        format!("{headline}, {failed} of {} slices failed", slices.len() + 1)
+    let warning = slice_warning(value, &slices);
+    let headline = match &warning {
+        Some(warning) => format!("{headline}, {warning}"),
+        None => headline.to_string(),
     };
     let headline = if summary.is_empty() {
         headline
     } else {
         format!("{headline}  {summary}")
     };
-    if failed == 0 && !unreadable {
+    if warning.is_none() {
         doc.success(&headline);
     } else {
         doc.line(vec![Cell::from("!").tone(Tone::Warn), headline.into()]);
@@ -1361,6 +1357,31 @@ pub(crate) fn write_result(value: &Value, headline: &str, summary: &str, doc: &m
 fn slices(value: &Value) -> Vec<Result<String, String>> {
     let children = value["children"].as_array().into_iter().flatten();
     children.map(slice).collect()
+}
+
+/// The headline warning when a slice failed or the slices could not be read.
+fn slice_warning(value: &Value, slices: &[Result<String, String>]) -> Option<String> {
+    if !value["children"].is_null() && !value["children"].is_array() {
+        return Some("could not read slice results".into());
+    }
+    let failed = slices.iter().filter(|slice| slice.is_err()).count();
+    (failed > 0).then(|| format!("{failed} of {} slices failed", slices.len() + 1))
+}
+
+/// The slice warning followed by each failed slice, on one line.
+pub(crate) fn slice_problems(value: &Value) -> Option<String> {
+    let slices = slices(value);
+    let warning = slice_warning(value, &slices)?;
+    let failed = (2..).zip(&slices).filter_map(|(number, slice)| {
+        let reason = slice.as_ref().err()?;
+        Some(format!("Slice {number} {reason}"))
+    });
+    Some(
+        std::iter::once(warning)
+            .chain(failed)
+            .collect::<Vec<_>>()
+            .join("; "),
+    )
 }
 
 /// A child's order ID, or why Kite did not place it.
@@ -1592,6 +1613,33 @@ mod tests {
                 b"hint: check its status with `kite orders get parent`\n"
             );
         }
+    }
+
+    #[test]
+    fn slice_problems_number_failed_slices_from_two() {
+        for value in [
+            serde_json::json!({"order_id":"first"}),
+            serde_json::json!({"order_id":"first", "children":null}),
+            serde_json::json!({"order_id":"first", "children":[]}),
+            serde_json::json!({"order_id":"first", "children":[{"order_id":"second"}]}),
+        ] {
+            assert_eq!(slice_problems(&value), None, "{value}");
+        }
+        assert_eq!(
+            slice_problems(&serde_json::json!({"order_id":"first", "children":"Rejected"})),
+            Some("could not read slice results".into())
+        );
+        assert_eq!(
+            slice_problems(&serde_json::json!({"order_id":"first", "children":[
+                {"error":{"message":"Rejected", "error_type":"OrderException"}},
+                {"order_id":"third"},
+                {}
+            ]})),
+            Some(
+                "2 of 4 slices failed; Slice 2 failed: Rejected (OrderException); Slice 4 failed"
+                    .into()
+            )
+        );
     }
 
     #[test]

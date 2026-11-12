@@ -18,6 +18,13 @@ pub fn position_live_pnl(row: &Position, live_ltp: Option<f64>) -> f64 {
     }
 }
 
+/// Kite's position `Chg.`: the LTP move from the average price, unsigned by
+/// side, so a short shows a fall as negative just as Kite Web does.
+pub fn position_change_pct(row: &Position, ltp: f64) -> Option<f64> {
+    (row.quantity != 0 && row.average_price > 0.0)
+        .then(|| (ltp - row.average_price) / row.average_price * 100.0)
+}
+
 pub fn position_effective_multiplier(row: &Position) -> f64 {
     if row.multiplier == 0.0 {
         1.0

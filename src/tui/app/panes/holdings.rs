@@ -9,7 +9,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HoldingsSort {
     #[default]
-    PnlPct,
+    ChgPct,
     PnlAbs,
     Value,
     DayPct,
@@ -18,7 +18,7 @@ pub enum HoldingsSort {
 
 impl HoldingsSort {
     pub const ALL: [Self; 5] = [
-        Self::PnlPct,
+        Self::ChgPct,
         Self::PnlAbs,
         Self::Value,
         Self::DayPct,
@@ -27,17 +27,17 @@ impl HoldingsSort {
 
     pub(in crate::tui::app) fn next(self) -> Self {
         match self {
-            HoldingsSort::PnlPct => HoldingsSort::PnlAbs,
+            HoldingsSort::ChgPct => HoldingsSort::PnlAbs,
             HoldingsSort::PnlAbs => HoldingsSort::Value,
             HoldingsSort::Value => HoldingsSort::DayPct,
             HoldingsSort::DayPct => HoldingsSort::Symbol,
-            HoldingsSort::Symbol => HoldingsSort::PnlPct,
+            HoldingsSort::Symbol => HoldingsSort::ChgPct,
         }
     }
 
     pub fn label(self) -> &'static str {
         match self {
-            HoldingsSort::PnlPct => "P&L% ▼",
+            HoldingsSort::ChgPct => "chg% ▼",
             HoldingsSort::PnlAbs => "P&L ▼",
             HoldingsSort::Value => "value ▼",
             HoldingsSort::DayPct => "day% ▼",
@@ -77,7 +77,7 @@ pub fn holdings_order(
                 HoldingsSort::PnlAbs => crate::tui::data::holding_live_pnl(h, Some(ltp)),
                 HoldingsSort::Value => ltp * qty,
 
-                HoldingsSort::PnlPct if h.average_price > 0.0 => {
+                HoldingsSort::ChgPct if h.average_price > 0.0 => {
                     (ltp - h.average_price) / h.average_price * 100.0
                 }
                 HoldingsSort::DayPct if h.close_price > 0.0 => {
@@ -270,7 +270,7 @@ mod tests {
             holding("CCC", 3, 100.0, 90.0, 100.0, 10),
         ];
         assert_eq!(
-            holdings_order(&hs, no_live, HoldingsSort::PnlPct),
+            holdings_order(&hs, no_live, HoldingsSort::ChgPct),
             vec![1, 0, 2]
         );
     }
@@ -313,7 +313,7 @@ mod tests {
             holding("CCC", 3, 100.0, 110.0, 100.0, 10),
         ];
         assert_eq!(
-            holdings_order(&hs, no_live, HoldingsSort::PnlPct),
+            holdings_order(&hs, no_live, HoldingsSort::ChgPct),
             vec![0, 1, 2]
         );
     }
@@ -325,7 +325,7 @@ mod tests {
             holding("BBB", 2, 100.0, 130.0, 100.0, 10),
         ];
         assert_eq!(
-            holdings_order(&hs, no_live, HoldingsSort::PnlPct),
+            holdings_order(&hs, no_live, HoldingsSort::ChgPct),
             vec![1, 0]
         );
     }
@@ -337,7 +337,7 @@ mod tests {
             holding("BBB", 2, 100.0, 130.0, 100.0, 1),
             holding("CCC", 3, 100.0, 90.0, 100.0, 10),
         ];
-        let order = holdings_order(&hs, no_live, HoldingsSort::PnlPct);
+        let order = holdings_order(&hs, no_live, HoldingsSort::ChgPct);
 
         assert_eq!(hs[order[0]].tradingsymbol, "BBB");
         assert_eq!(hs[order[2]].tradingsymbol, "CCC");
@@ -351,7 +351,7 @@ mod tests {
         ];
 
         let live = |token: u32| (token == 2).then_some(200.0);
-        assert_eq!(holdings_order(&hs, live, HoldingsSort::PnlPct), vec![1, 0]);
+        assert_eq!(holdings_order(&hs, live, HoldingsSort::ChgPct), vec![1, 0]);
     }
 
     #[test]
@@ -408,7 +408,7 @@ mod tests {
             HoldingsSort::Value,
             HoldingsSort::DayPct,
             HoldingsSort::Symbol,
-            HoldingsSort::PnlPct,
+            HoldingsSort::ChgPct,
         ] {
             app.on_key(char_key('S'));
             assert_eq!(app.books.portfolio_holdings.sort(), expected);

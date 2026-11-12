@@ -8,7 +8,7 @@ pub(super) fn positions_header_sort(mode: PositionsSort) -> HeaderSort {
         PositionsSort::Symbol => asc(0),
         PositionsSort::Qty => desc(2),
         PositionsSort::Pnl => desc(5),
-        PositionsSort::DayPct => desc(6),
+        PositionsSort::ChgPct => desc(6),
     }
 }
 
@@ -65,7 +65,7 @@ pub(super) fn holdings_header_sort(mode: HoldingsSort) -> HeaderSort {
         HoldingsSort::Symbol => asc(0),
         HoldingsSort::Value => desc(4),
         HoldingsSort::PnlAbs => desc(5),
-        HoldingsSort::PnlPct => desc(6),
+        HoldingsSort::ChgPct => desc(6),
         HoldingsSort::DayPct => desc(7),
     }
 }
@@ -261,12 +261,12 @@ mod sort_header_tests {
     fn each_sort_mode_marks_the_column_it_orders_by() {
         assert_eq!(positions_header_sort(PositionsSort::Pnl), desc(5));
         assert_eq!(positions_header_sort(PositionsSort::Qty), desc(2));
-        assert_eq!(positions_header_sort(PositionsSort::DayPct), desc(6));
+        assert_eq!(positions_header_sort(PositionsSort::ChgPct), desc(6));
         assert_eq!(positions_header_sort(PositionsSort::Symbol), asc(0));
         assert_eq!(orders_header_sort(OrdersSort::Time), desc(1));
         assert_eq!(orders_header_sort(OrdersSort::Status), asc(10));
         assert_eq!(orders_header_sort(OrdersSort::Symbol), asc(2));
-        assert_eq!(holdings_header_sort(HoldingsSort::PnlPct), desc(6));
+        assert_eq!(holdings_header_sort(HoldingsSort::ChgPct), desc(6));
         assert_eq!(holdings_header_sort(HoldingsSort::PnlAbs), desc(5));
         assert_eq!(holdings_header_sort(HoldingsSort::Value), desc(4));
         assert_eq!(holdings_header_sort(HoldingsSort::DayPct), desc(7));
@@ -292,14 +292,14 @@ mod sort_header_tests {
             ("positions", 0, "SYMBOL"),
             ("positions", 2, "QTY"),
             ("positions", 5, "P&L"),
-            ("positions", 6, "DAY%"),
+            ("positions", 6, "CHG%"),
             ("orders", 1, "TIME"),
             ("orders", 2, "SYMBOL"),
             ("orders", 10, "STATUS"),
             ("holdings", 0, "SYMBOL"),
             ("holdings", 4, "VALUE"),
             ("holdings", 5, "P&L"),
-            ("holdings", 6, "P&L%"),
+            ("holdings", 6, "CHG%"),
             ("holdings", 7, "DAY%"),
             ("mf", 0, "FUND"),
             ("mf", 5, "CUR.VAL"),
@@ -409,8 +409,8 @@ mod sort_header_tests {
             let rows = rows_at(width, height, &app, draw_holdings);
             let header = header_row(&rows, "SYMBOL");
             assert!(
-                header.contains("P&L% ▼"),
-                "{width}x{height} holdings header has no P&L% arrow: {header:?}"
+                header.contains("CHG% ▼"),
+                "{width}x{height} holdings header has no CHG% arrow: {header:?}"
             );
             assert!(
                 !header.contains("P&L ▼"),
@@ -452,9 +452,46 @@ mod sort_header_tests {
             marked.push(header);
         }
         assert!(marked[0].contains("QTY ▼"), "{:?}", marked[0]);
-        assert!(marked[1].contains("DAY% ▼"), "{:?}", marked[1]);
+        assert!(marked[1].contains("CHG% ▼"), "{:?}", marked[1]);
         assert!(marked[2].contains("SYMBOL ▲"), "{:?}", marked[2]);
         assert!(marked[3].contains("P&L ▼"), "{:?}", marked[3]);
+    }
+
+    #[test]
+    fn positions_chg_matches_kite_web_move_from_average() {
+        let row = |symbol: &str, quantity: i64, average: f64, ltp: f64| {
+            let mut row = position();
+            row.tradingsymbol = symbol.into();
+            row.exchange = "NFO".into();
+            row.quantity = quantity;
+            row.average_price = average;
+            row.last_price = ltp;
+            row.close_price = 1.0;
+            row
+        };
+        let mut app = test_app();
+        app.positions = Some({
+            let mut book = crate::tui::data::test_models::positions();
+            book.net = vec![
+                row("LONGCE", 65, 28.70, 22.80),
+                row("SHORTCE", -65, 18.25, 10.60),
+                row("CLOSEDCE", 0, 0.0, 64.25),
+            ];
+            book
+        });
+        let rows = rows_at(120, 12, &app, draw_positions);
+        let last_cell = |symbol: &str| -> String {
+            header_row(&rows, symbol)
+                .trim_end_matches(['│', ' '])
+                .rsplit(' ')
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        };
+        assert!(header_row(&rows, "SYMBOL").contains("CHG%"), "{rows:#?}");
+        assert_eq!(last_cell("LONGCE"), "-20.56%");
+        assert_eq!(last_cell("SHORTCE"), "-41.92%");
+        assert_eq!(last_cell("CLOSEDCE"), ".");
     }
 
     #[test]
@@ -481,7 +518,7 @@ mod sort_header_tests {
                 &sortable_columns(&positions_sort_targets()),
                 76
             ),
-            vec!["SYMBOL", "PROD", "QTY", "AVG", "LTP", "P&L", "DAY%"]
+            vec!["SYMBOL", "PROD", "QTY", "AVG", "LTP", "P&L", "CHG%"]
         );
         assert_eq!(
             kept(
@@ -490,7 +527,7 @@ mod sort_header_tests {
                 &sortable_columns(&holdings_sort_targets()),
                 76
             ),
-            vec!["SYMBOL", "QTY", "LTP", "VALUE", "P&L", "P&L%", "DAY%"]
+            vec!["SYMBOL", "QTY", "LTP", "VALUE", "P&L", "CHG%", "DAY%"]
         );
         assert_eq!(
             kept(

@@ -1078,7 +1078,7 @@ pub(in crate::tui::app) mod tests {
     #[test]
     fn header_click_sorts_by_that_column() {
         let mut app = holdings_app();
-        assert_eq!(app.books.portfolio_holdings.sort(), HoldingsSort::PnlPct);
+        assert_eq!(app.books.portfolio_holdings.sort(), HoldingsSort::ChgPct);
         let x = text_at(&app, W, H, HEADER_ROW, "VALUE");
         click(&mut app, W, H, x, HEADER_ROW);
         assert_eq!(app.books.portfolio_holdings.sort(), HoldingsSort::Value);
@@ -1091,7 +1091,7 @@ pub(in crate::tui::app) mod tests {
     fn a_header_click_lands_on_its_label_at_every_width() {
         for width in [80u16, 120, 200] {
             let mut app = holdings_app();
-            app.books.portfolio_holdings.set_sort(HoldingsSort::PnlPct);
+            app.books.portfolio_holdings.set_sort(HoldingsSort::ChgPct);
             let x = text_at(&app, width, H, HEADER_ROW, "VALUE");
             click(&mut app, width, H, x, HEADER_ROW);
             assert_eq!(

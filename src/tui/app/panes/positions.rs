@@ -10,18 +10,18 @@ pub enum PositionsSort {
     #[default]
     Pnl,
     Qty,
-    DayPct,
+    ChgPct,
     Symbol,
 }
 
 impl PositionsSort {
-    pub const ALL: [Self; 4] = [Self::Pnl, Self::Qty, Self::DayPct, Self::Symbol];
+    pub const ALL: [Self; 4] = [Self::Pnl, Self::Qty, Self::ChgPct, Self::Symbol];
 
     pub(in crate::tui::app) fn next(self) -> Self {
         match self {
             PositionsSort::Pnl => PositionsSort::Qty,
-            PositionsSort::Qty => PositionsSort::DayPct,
-            PositionsSort::DayPct => PositionsSort::Symbol,
+            PositionsSort::Qty => PositionsSort::ChgPct,
+            PositionsSort::ChgPct => PositionsSort::Symbol,
             PositionsSort::Symbol => PositionsSort::Pnl,
         }
     }
@@ -30,7 +30,7 @@ impl PositionsSort {
         match self {
             PositionsSort::Pnl => "P&L ▼",
             PositionsSort::Qty => "qty ▼",
-            PositionsSort::DayPct => "day% ▼",
+            PositionsSort::ChgPct => "chg% ▼",
             PositionsSort::Symbol => "symbol ▲",
         }
     }
@@ -76,14 +76,10 @@ pub fn positions_order(
                     .then_with(|| positions[a].tradingsymbol.cmp(&positions[b].tradingsymbol))
             });
         }
-        PositionsSort::DayPct => {
+        PositionsSort::ChgPct => {
             let key = |p: &Position| -> f64 {
                 let ltp = live(p.instrument_token).unwrap_or(p.last_price);
-                if p.close_price > 0.0 {
-                    (ltp - p.close_price) / p.close_price * 100.0
-                } else {
-                    f64::NEG_INFINITY
-                }
+                crate::tui::data::position_change_pct(p, ltp).unwrap_or(f64::NEG_INFINITY)
             };
             let keys: Vec<f64> = positions.iter().map(key).collect();
             order.sort_by(|&a, &b| cmp_desc(keys[a], keys[b]));
@@ -239,15 +235,21 @@ pub(in crate::tui::app) mod tests {
     }
 
     #[test]
-    fn positions_sort_day_pct_desc() {
+    fn positions_sort_chg_pct_ranks_the_move_from_average_not_the_day_change() {
+        let at = |symbol: &str, token: u32, qty: i64, avg: f64, last: f64, close: f64| {
+            let mut row = position(symbol, token, qty, 0.0, last, close);
+            row.average_price = avg;
+            row
+        };
         let ps = [
-            position("AAA", 1, 10, 0.0, 120.0, 100.0),
-            position("BBB", 2, 10, 0.0, 110.0, 100.0),
-            position("CCC", 3, 10, 0.0, 90.0, 0.0),
+            at("FLAT_DAY", 1, 10, 100.0, 120.0, 120.0),
+            at("CLOSED", 2, 0, 0.0, 50.0, 10.0),
+            at("SHORT", 3, -10, 100.0, 90.0, 80.0),
+            at("UP_DAY", 4, 10, 100.0, 105.0, 50.0),
         ];
         assert_eq!(
-            positions_order(&ps, no_live, PositionsSort::DayPct),
-            vec![0, 1, 2]
+            positions_order(&ps, no_live, PositionsSort::ChgPct),
+            vec![0, 3, 2, 1]
         );
     }
 

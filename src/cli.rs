@@ -440,6 +440,13 @@ fn parse_order_price(raw: &str) -> Result<f64, String> {
         .ok_or_else(|| "price must be a finite, non-negative number".to_string())
 }
 
+fn parse_order_quantity(raw: &str) -> Result<i64, String> {
+    raw.parse::<i64>()
+        .ok()
+        .filter(|quantity| *quantity > 0)
+        .ok_or_else(|| "quantity must be a positive integer".to_string())
+}
+
 fn parse_order_tag(raw: &str) -> Result<String, String> {
     if raw.is_empty() || raw.len() > 20 || !raw.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
         return Err("order tag must contain 1 to 20 ASCII letters or digits".to_string());
@@ -540,34 +547,34 @@ pub struct OrderPlaceArgs {
     #[arg(long, ignore_case = true, value_parser = clap::builder::PossibleValuesParser::new(ORDER_TYPES).map(|value| value.to_ascii_uppercase()))]
     pub order_type: String,
     /// Number of shares/contracts/units to transact.
-    #[arg(long)]
+    #[arg(long, value_parser = parse_order_quantity)]
     pub quantity: i64,
     /// CNC, NRML, MIS, MTF, etc.
     #[arg(long, ignore_case = true, value_parser = clap::builder::PossibleValuesParser::new(PRODUCTS).map(|value| value.to_ascii_uppercase()))]
     pub product: String,
     /// Limit price for LIMIT/SL orders. Omit or use 0 for MARKET orders.
-    #[arg(long, value_parser = parse_order_price)]
+    #[arg(long, value_parser = parse_order_price, required_if_eq_any([("order_type", "LIMIT"), ("order_type", "SL")]))]
     pub price: Option<f64>,
     /// Trigger price for SL/SL-M orders.
-    #[arg(long, value_parser = parse_order_price)]
+    #[arg(long, value_parser = parse_order_price, required_if_eq_any([("order_type", "SL"), ("order_type", "SL-M")]))]
     pub trigger_price: Option<f64>,
     /// Quantity disclosed to the market for equity orders.
-    #[arg(long)]
+    #[arg(long, value_parser = clap::value_parser!(i64).range(0..))]
     pub disclosed_quantity: Option<i64>,
     /// DAY, IOC, TTL.
     #[arg(long, ignore_case = true, value_parser = clap::builder::PossibleValuesParser::new(VALIDITIES).map(|value| value.to_ascii_uppercase()))]
     pub validity: Option<String>,
     /// TTL validity in minutes. Used only when --validity TTL.
-    #[arg(long)]
+    #[arg(long, value_parser = clap::value_parser!(i64).range(1..), required_if_eq("validity", "TTL"))]
     pub validity_ttl: Option<i64>,
     /// Number of iceberg legs, between 2 and 50.
-    #[arg(long, value_parser = clap::value_parser!(i64).range(2..=50))]
+    #[arg(long, value_parser = clap::value_parser!(i64).range(2..=50), required_if_eq("variety", "iceberg"))]
     pub iceberg_legs: Option<i64>,
     /// Quantity per iceberg leg.
-    #[arg(long)]
+    #[arg(long, value_parser = parse_order_quantity)]
     pub iceberg_quantity: Option<i64>,
     /// Auction number for auction variety orders.
-    #[arg(long)]
+    #[arg(long, required_if_eq("variety", "auction"))]
     pub auction_number: Option<String>,
     /// -1 for auto protection, or 0-100 percent.
     #[arg(long, value_parser = clap::value_parser!(i64).range(-1..=100), allow_hyphen_values = true)]
@@ -598,7 +605,7 @@ pub struct OrderModifyArgs {
     #[arg(long, ignore_case = true, value_parser = clap::builder::PossibleValuesParser::new(ORDER_TYPES).map(|value| value.to_ascii_uppercase()))]
     pub order_type: Option<String>,
     /// New quantity.
-    #[arg(long)]
+    #[arg(long, value_parser = parse_order_quantity)]
     pub quantity: Option<i64>,
     /// New limit price.
     #[arg(long, value_parser = parse_order_price)]
@@ -607,13 +614,13 @@ pub struct OrderModifyArgs {
     #[arg(long, value_parser = parse_order_price)]
     pub trigger_price: Option<f64>,
     /// New disclosed quantity.
-    #[arg(long)]
+    #[arg(long, value_parser = clap::value_parser!(i64).range(0..))]
     pub disclosed_quantity: Option<i64>,
     /// New order validity.
     #[arg(long, ignore_case = true, value_parser = clap::builder::PossibleValuesParser::new(VALIDITIES).map(|value| value.to_ascii_uppercase()))]
     pub validity: Option<String>,
     /// New TTL validity in minutes. Used only when --validity TTL.
-    #[arg(long)]
+    #[arg(long, value_parser = clap::value_parser!(i64).range(1..))]
     pub validity_ttl: Option<i64>,
     /// -1 for automatic protection, or 0 to 100 percent.
     #[arg(long, value_parser = clap::value_parser!(i64).range(-1..=100), allow_hyphen_values = true)]
@@ -992,6 +999,77 @@ mod tests {
         assert!(super::parse_quote_instrument("NSE:INFY").is_ok());
         for value in ["INFY", ":INFY", "NSE:"] {
             assert!(super::parse_quote_instrument(value).is_err());
+        }
+    }
+
+    fn parse_place(extra: &str) -> Result<Cli, clap::Error> {
+        use clap::Parser;
+        Cli::try_parse_from(
+            "kite orders place --exchange NFO --tradingsymbol NIFTY26NOVFUT --transaction-type BUY --product NRML"
+                .split_whitespace()
+                .chain(extra.split_whitespace()),
+        )
+    }
+
+    #[test]
+    fn order_flags_required_by_the_order_type_or_variety_are_enforced() {
+        for (extra, missing) in [
+            ("--quantity 75 --order-type LIMIT", "--price"),
+            ("--quantity 75 --order-type sl", "--price"),
+            (
+                "--quantity 75 --order-type SL --price 100",
+                "--trigger-price",
+            ),
+            ("--quantity 75 --order-type SL-M", "--trigger-price"),
+            (
+                "--quantity 75 --order-type MARKET --variety iceberg",
+                "--iceberg-legs",
+            ),
+            (
+                "--quantity 75 --order-type MARKET --validity TTL",
+                "--validity-ttl",
+            ),
+            (
+                "--quantity 75 --order-type MARKET --variety auction",
+                "--auction-number",
+            ),
+        ] {
+            let error = parse_place(extra).unwrap_err();
+            assert_eq!(
+                error.kind(),
+                clap::error::ErrorKind::MissingRequiredArgument,
+                "{extra}"
+            );
+            assert!(error.to_string().contains(missing), "{extra}");
+        }
+        assert!(parse_place("--quantity 75 --order-type MARKET").is_ok());
+    }
+
+    #[test]
+    fn order_quantities_refuse_values_kite_cannot_accept() {
+        use clap::Parser;
+        for extra in [
+            "--order-type MARKET --quantity 0",
+            "--order-type MARKET --quantity=-75",
+            "--order-type MARKET --quantity 75 --disclosed-quantity=-5",
+            "--order-type MARKET --quantity 75 --iceberg-quantity 0",
+            "--order-type MARKET --quantity 75 --validity-ttl 0",
+        ] {
+            assert_eq!(
+                parse_place(extra).unwrap_err().kind(),
+                clap::error::ErrorKind::ValueValidation,
+                "{extra}"
+            );
+        }
+        for extra in ["--quantity 0", "--quantity=-5", "--validity-ttl 0"] {
+            let args = "kite orders modify --order-id 1"
+                .split_whitespace()
+                .chain(extra.split_whitespace());
+            assert_eq!(
+                Cli::try_parse_from(args).unwrap_err().kind(),
+                clap::error::ErrorKind::ValueValidation,
+                "{extra}"
+            );
         }
     }
 

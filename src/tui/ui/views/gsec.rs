@@ -70,7 +70,7 @@ pub(super) fn draw_gsec_table(
                 &row.name
             };
             let order = row.order.as_ref();
-            let status = order.map(|order| order.status.as_str()).unwrap_or_default();
+            let status = row.gsec_status();
             fit_row(
                 &fit,
                 &[
@@ -97,12 +97,7 @@ pub(super) fn draw_gsec_table(
                             },
                         ))
                     },
-                    &|| {
-                        bid_status_cell(
-                            status,
-                            order.is_some_and(crate::tui::bids::BidOrder::is_live),
-                        )
-                    },
+                    &|| bid_status_cell(&status),
                 ],
             )
         })
@@ -195,7 +190,7 @@ mod gsec_render_tests {
         assert!(wide.contains("GSEC"), "{wide}");
         assert!(wide.contains("6.57% GS 2033"), "{wide}");
         assert!(wide.contains("10,150.00"), "{wide}");
-        assert!(wide.contains("placed"), "{wide}");
+        assert!(wide.contains("PLACED"), "{wide}");
         let narrow = rendered_at(&app, 48, 10);
         assert!(narrow.contains("7.25%"), "{narrow}");
         assert!(narrow.contains("10 Sep"), "{narrow}");

@@ -64,19 +64,7 @@ pub(super) fn draw_corporate_action_table(
     let table_rows = rows
         .iter()
         .map(|row| {
-            let orders = row.orders.as_deref().unwrap_or_default();
-            let live = orders.iter().filter(|order| order.is_live()).count();
-            let current = orders
-                .iter()
-                .find(|order| order.is_live())
-                .or_else(|| orders.first());
-            let status = match current {
-                Some(order) if live > 1 && row.kind == "ofs" => {
-                    format!("{} ({live})", order.status)
-                }
-                Some(order) => order.status.clone(),
-                None => String::new(),
-            };
+            let status = row.corporate_action_status();
             let series =
                 (row.kind == "ofs" && !row.series.is_empty()).then_some(row.series.as_str());
             fit_row(
@@ -87,12 +75,7 @@ pub(super) fn draw_corporate_action_table(
                     &|| right(format::day_month_time(&row.start_at)),
                     &|| right(format::day_month_time(&row.end_at)),
                     &|| right(offer_price(row.min_price, offer_width)),
-                    &|| {
-                        bid_status_cell(
-                            &status,
-                            current.is_some_and(crate::tui::bids::BidOrder::is_live),
-                        )
-                    },
+                    &|| bid_status_cell(&status),
                 ],
             )
         })
@@ -178,6 +161,7 @@ mod corporate_action_render_tests {
         assert!(rows.contains("7 Sep 08:00"), "{rows}");
         assert!(rows.contains("21 Sep 13:00"), "{rows}");
         assert!(rows.contains("150.00"), "{rows}");
+        assert!(rows.contains("Place bid"), "{rows}");
     }
 
     #[test]
@@ -225,7 +209,7 @@ mod corporate_action_render_tests {
             ..Default::default()
         }]);
         let rows = rendered(&app);
-        assert!(rows.contains("placed (2)"), "{rows}");
-        assert!(!rows.contains("cancelled"), "{rows}");
+        assert!(rows.contains("PLACED (2)"), "{rows}");
+        assert!(!rows.contains("CANCELLED"), "{rows}");
     }
 }

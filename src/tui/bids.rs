@@ -143,6 +143,24 @@ impl BidOrder {
     }
 }
 
+/// What Kite web shows in a bid row's last column.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BidStatus {
+    Action(&'static str),
+    Live(String),
+    Closed(String),
+}
+
+impl BidStatus {
+    pub fn of(label: String, live: bool) -> Self {
+        if live {
+            Self::Live(label)
+        } else {
+            Self::Closed(label)
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Instrument {
     #[serde(default, deserialize_with = "null_default")]
@@ -188,12 +206,48 @@ impl Instrument {
         }
     }
 
-    pub fn active_order(&self) -> Option<&BidOrder> {
-        self.order.as_ref().or_else(|| {
-            self.orders
-                .as_deref()
-                .and_then(|orders| orders.iter().find(|order| order.is_live()))
-        })
+    pub fn gsec_status(&self) -> BidStatus {
+        self.order
+            .as_ref()
+            .map_or(BidStatus::Action("Place bid"), |order| {
+                BidStatus::of(order.status.to_ascii_uppercase(), order.is_live())
+            })
+    }
+
+    pub fn corporate_action_status(&self) -> BidStatus {
+        let orders = self.orders.as_deref().unwrap_or_default();
+        let live = orders.iter().filter(|order| order.is_live()).count();
+        let Some(current) = orders
+            .iter()
+            .find(|order| order.is_live())
+            .or_else(|| orders.first())
+        else {
+            return BidStatus::Action("Place bid");
+        };
+        let status = current.status.to_ascii_uppercase();
+        let label = if live > 1 && self.kind == "ofs" {
+            format!("{status} ({live})")
+        } else {
+            status
+        };
+        BidStatus::of(label, current.is_live())
+    }
+
+    pub fn sse_status(&self) -> BidStatus {
+        if !self.is_open() {
+            return BidStatus::Closed(self.status.to_ascii_uppercase());
+        }
+        let applied = self
+            .orders
+            .as_deref()
+            .is_some_and(|orders| orders.iter().any(BidOrder::is_live));
+        if applied {
+            BidStatus::Live("Applied".to_string())
+        } else if self.status == "ongoing" {
+            BidStatus::Action("Give back")
+        } else {
+            BidStatus::Action("Pre-apply")
+        }
     }
 
     pub fn is_sme(&self) -> bool {
@@ -492,7 +546,10 @@ mod tests {
         }))
         .expect("nullable bid payload");
         assert_eq!(instrument.label(), "NULLABLE");
-        assert_eq!(instrument.active_order().unwrap().status, "PLACED");
+        assert_eq!(
+            instrument.gsec_status(),
+            super::BidStatus::Live("PLACED".into())
+        );
         assert_eq!(instrument.min_price.to_bits(), 0.0_f64.to_bits());
         assert!(instrument.price_band().is_none());
         assert!(instrument.min_amount().is_none());
@@ -519,6 +576,5 @@ mod tests {
         assert!(instrument.is_sme());
         assert_eq!(instrument.price_band(), Some((118.0, 124.0)));
         assert_eq!(instrument.min_amount(), Some(14_880.0));
-        assert_eq!(instrument.active_order().unwrap().quantity, 240);
     }
 }

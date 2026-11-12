@@ -11,6 +11,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `kite orders place` and `kite orders modify` refuse a zero or negative `--quantity` and a negative `--disclosed-quantity`.
 - An autoslice order placed from the TUI order ticket shows an error toast when Kite rejects a slice. The toast counts the failed slices and gives each one's reason. It previously showed only the first order ID as placed. This also covers orders the ticket slices by itself above the freeze quantity.
 - The TUI shows rupee totals to the paisa, as Kite does: the Positions P&L summary, the Overview tiles and panel totals, the Holdings title, Funds and the available margin in the header. They were rounded to whole rupees, so a P&L of +619.16 read +₹619.
+- SSE IPO rows show Applied only when an application is live. Any order object in Kite's reply used to mark the issue applied, even after every application had failed or been cancelled.
+- The IPO & Bids sections use Kite web's labels: Place bid for GSecs and corporate actions without an order, Give back or Pre-apply for open SSE issues, and order statuses in capitals.
 
 ## [0.2.3] - 2026-11-12
 

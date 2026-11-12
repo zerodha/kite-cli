@@ -71,13 +71,16 @@ pub(super) fn bid_symbol_cell(symbol: &str, tag: Option<&str>) -> Cell<'static> 
     Cell::from(Line::from(spans))
 }
 
-pub(super) fn bid_status_cell(status: &str, live: bool) -> Cell<'static> {
-    let style = if live {
-        Style::default().fg(format::up())
-    } else {
-        format::dim()
-    };
-    right_styled(status.to_ascii_lowercase(), style)
+pub(super) fn bid_status_cell(status: &bids::BidStatus) -> Cell<'static> {
+    match status {
+        bids::BidStatus::Action(label) => {
+            right_styled((*label).to_string(), Style::default().fg(format::info()))
+        }
+        bids::BidStatus::Live(label) => {
+            right_styled(label.clone(), Style::default().fg(format::up()))
+        }
+        bids::BidStatus::Closed(label) => right_styled(label.clone(), format::dim()),
+    }
 }
 
 pub(super) fn offer_price(value: f64, width: usize) -> String {

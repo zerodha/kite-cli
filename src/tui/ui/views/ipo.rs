@@ -35,17 +35,12 @@ const IPO_NAME_MAX: u16 = 40;
 
 fn ipo_row(
     row: &bids::Instrument,
-    applied: bool,
+    status: &bids::BidStatus,
     fit: &columns::ColumnFit,
     layout: &columns::TableLayout,
 ) -> ratatui::widgets::Row<'static> {
     let band_width = usize::from(layout.width(3));
     let open = row.is_open();
-    let (status, live) = if applied {
-        ("applied".to_string(), true)
-    } else {
-        (row.status.clone(), open)
-    };
     let cells = fit_row(
         fit,
         &[
@@ -89,7 +84,7 @@ fn ipo_row(
                     String::new()
                 })
             },
-            &|| bid_status_cell(&status, live),
+            &|| bid_status_cell(status),
         ],
     );
     if open || row.status.is_empty() {
@@ -133,23 +128,28 @@ pub(super) fn draw_ipo_table(
             ),
         ],
     );
-    let applied = |row: &bids::Instrument| -> bool {
-        if section == BidsSection::Ipo {
-            app.bids
-                .applications
-                .as_deref()
-                .is_some_and(|applications| {
-                    applications
-                        .iter()
-                        .any(|item| item.symbol == row.label() && item.is_live())
-                })
+    let status = |row: &bids::Instrument| -> bids::BidStatus {
+        if section == BidsSection::Sse {
+            return row.sse_status();
+        }
+        let applied = app
+            .bids
+            .applications
+            .as_deref()
+            .is_some_and(|applications| {
+                applications
+                    .iter()
+                    .any(|item| item.symbol == row.label() && item.is_live())
+            });
+        if applied {
+            bids::BidStatus::Live("applied".to_string())
         } else {
-            row.active_order().is_some()
+            bids::BidStatus::of(row.status.to_ascii_lowercase(), row.is_open())
         }
     };
     let table_rows = rows
         .iter()
-        .map(|row| ipo_row(row, applied(row), &fit, &layout))
+        .map(|row| ipo_row(row, &status(row), &fit, &layout))
         .collect::<Vec<_>>();
     let open = rows.iter().filter(|row| row.is_open()).count();
     let table = Table::new(table_rows, fit_constraints(&fit, &layout))
@@ -238,7 +238,12 @@ pub(super) fn draw_ipo_applications(
                             "N/A".into()
                         })
                     },
-                    &|| bid_status_cell(&application.status, application.is_live()),
+                    &|| {
+                        bid_status_cell(&bids::BidStatus::of(
+                            application.status.to_ascii_lowercase(),
+                            application.is_live(),
+                        ))
+                    },
                 ],
             )
         })
@@ -265,7 +270,7 @@ pub(super) fn draw_ipo_applications(
 mod ipo_render_tests {
     use super::super::draw_bids;
     use crate::tui::app::App;
-    use crate::tui::bids::{Instrument, InvestorType};
+    use crate::tui::bids::{BidOrder, Instrument, InvestorType, Section};
     use crate::tui::notes::Pad;
     use crate::tui::settings::Settings;
     use crate::tui::workspace::PaneId;
@@ -327,5 +332,48 @@ mod ipo_render_tests {
         assert!(!rows.contains(",000–12,000"), "{rows}");
         assert!(rows.contains("1.20Cr"), "{rows}");
         assert!(!rows.contains(",20,00,000"), "{rows}");
+    }
+
+    #[test]
+    fn sse_rows_use_kite_web_labels_and_ignore_the_order_field() {
+        let mut app = app();
+        app.bids_pane.set_section(Section::Sse);
+        let issue = |symbol: &str, status: &str, orders: Vec<BidOrder>| Instrument {
+            symbol: symbol.into(),
+            name: format!("{symbol} Foundation"),
+            status: status.into(),
+            start_at: "2026-11-11 10:00:00".into(),
+            end_at: "2026-11-20 17:00:00".into(),
+            min_qty: 1_000,
+            investor_types: vec![InvestorType {
+                min_price: 1.0,
+                max_price: 1.0,
+            }],
+            order: Some(BidOrder::default()),
+            orders: Some(orders),
+            ..Default::default()
+        };
+        let order = |status: &str| BidOrder {
+            status: status.into(),
+            ..Default::default()
+        };
+        app.bids.sse = Some(vec![issue(
+            "FLZCZP",
+            "ongoing",
+            vec![order("cancelled"), order("failed")],
+        )]);
+        let rows = rendered(&app);
+        assert!(rows.contains("Give back"), "{rows}");
+        assert!(!rows.contains("Applied"), "{rows}");
+
+        app.bids.sse = Some(vec![
+            issue("LIVE", "ongoing", vec![order("submitted")]),
+            issue("SOON", "preapply", Vec::new()),
+            issue("DONE", "closed", Vec::new()),
+        ]);
+        let rows = rendered(&app);
+        assert!(rows.contains("Applied"), "{rows}");
+        assert!(rows.contains("Pre-apply"), "{rows}");
+        assert!(rows.contains("CLOSED"), "{rows}");
     }
 }

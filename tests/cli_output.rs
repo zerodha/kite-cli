@@ -1645,6 +1645,44 @@ fn alerts_modify_switching_a_constant_alert_to_an_instrument_defaults_the_rhs_at
 }
 
 #[test]
+fn alerts_modify_treats_an_empty_stored_rhs_attribute_as_missing() {
+    let setup = Setup::new();
+    cache_alert_instruments(&setup);
+    let mut body: Value = serde_json::from_str(&fixture("alerts_get_one.json")).unwrap();
+    body["data"]["rhs_type"] = json!("instrument");
+    body["data"]["rhs_exchange"] = json!("NSE");
+    body["data"]["rhs_tradingsymbol"] = json!("INFY");
+    setup.server.mock(|when, then| {
+        when.method(GET).path(format!("/alerts/{ALERT_UUID}"));
+        then.status(200).json_body(body);
+    });
+    let rejected = setup.run(
+        Path::new(env!("CARGO_BIN_EXE_kite")),
+        &["alerts", "modify", ALERT_UUID, "--name", "Renamed"],
+        true,
+    );
+    assert_eq!(rejected.status.code(), Some(1));
+    let value: Value = serde_json::from_slice(&rejected.stdout).unwrap();
+    assert_eq!(
+        value["error"]["message"],
+        "stored alert has no right-hand attribute"
+    );
+    let dry = setup.run(
+        Path::new(env!("CARGO_BIN_EXE_kite")),
+        &["alerts", "modify", ALERT_UUID, "--rhs", "NSE:INFY"],
+        true,
+    );
+    assert_eq!(
+        dry.status.code(),
+        Some(0),
+        "{}",
+        setup.normalized(&dry.stderr)
+    );
+    let value: Value = serde_json::from_slice(&dry.stdout).unwrap();
+    assert_eq!(value["body"]["form"]["rhs_attribute"], "LastTradedPrice");
+}
+
+#[test]
 fn alerts_status_changes_preserve_ato_type_and_reject_ato_edits() {
     let setup = Setup::new();
     let body: Value = serde_json::from_str(&fixture("alerts_get.json")).unwrap();

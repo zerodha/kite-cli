@@ -3,7 +3,7 @@ use crate::app::output::Output;
 use crate::app::render;
 use crate::app::runtime::Runtime;
 use crate::cli::OrdersCommands;
-use crate::util::{order_modify_params, order_place_params, wire_value};
+use crate::util::{order_modify_params, order_place_params, validate_order_place, wire_value};
 use anyhow::{Result, bail};
 use serde_json::Value;
 
@@ -51,6 +51,7 @@ pub async fn handle(rt: &Runtime, command: OrdersCommands) -> Result<Output> {
             None => rt.with_session(|api| api.trades().raw()).await?,
         },
         OrdersCommands::Place(args) => {
+            validate_order_place(&args)?;
             let variety = wire_value(&args.variety)?;
             let params = order_place_params(&args)?;
             return send_unless_dry_run(

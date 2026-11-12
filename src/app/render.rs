@@ -1321,7 +1321,7 @@ pub(crate) fn write_result(value: &Value, headline: &str, summary: &str, doc: &m
     } else if failed == 0 {
         headline.to_string()
     } else {
-        format!("{headline}, {failed} of {} slices failed", slices.len())
+        format!("{headline}, {failed} of {} slices failed", slices.len() + 1)
     };
     let headline = if summary.is_empty() {
         headline
@@ -1334,7 +1334,7 @@ pub(crate) fn write_result(value: &Value, headline: &str, summary: &str, doc: &m
         doc.line(vec![Cell::from("!").tone(Tone::Warn), headline.into()]);
     }
     if let Some(id) = value.get("order_id") {
-        let labels: Vec<String> = (1..=slices.len())
+        let labels: Vec<String> = (2..=slices.len() + 1)
             .map(|number| format!("  Slice {number}"))
             .collect();
         let mut rows = vec![("  Order ID", scalar(id).into())];
@@ -1516,10 +1516,9 @@ mod tests {
         assert_eq!(
             String::from_utf8(out).unwrap(),
             concat!(
-                "! Order submitted, 13 of 14 slices failed\n",
+                "! Order submitted, 13 of 15 slices failed\n",
                 "  Order ID  parent\n",
-                "  Slice 1   failed: Rejected (OrderException)\n",
-                "  Slice 2   failed\n",
+                "  Slice 2   failed: Rejected (OrderException)\n",
                 "  Slice 3   failed\n",
                 "  Slice 4   failed\n",
                 "  Slice 5   failed\n",
@@ -1528,10 +1527,11 @@ mod tests {
                 "  Slice 8   failed\n",
                 "  Slice 9   failed\n",
                 "  Slice 10  failed\n",
-                "  Slice 11  failed: InputException\n",
-                "  Slice 12  failed\n",
-                "  Slice 13  ok id\n",
-                "  Slice 14  failed: denied access_token=<redacted> (Bad Kind)\n"
+                "  Slice 11  failed\n",
+                "  Slice 12  failed: InputException\n",
+                "  Slice 13  failed\n",
+                "  Slice 14  ok id\n",
+                "  Slice 15  failed: denied access_token=<redacted> (Bad Kind)\n"
             )
         );
         assert_eq!(

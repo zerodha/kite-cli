@@ -360,6 +360,28 @@ fn autoslice_orders_list_each_slice_and_flag_failed_ones() {
 }
 
 #[test]
+fn autoslice_failure_count_includes_the_first_placed_order() {
+    let setup = Setup::new();
+    let mut body: Value = serde_json::from_str(&fixture("autoslice_response.json")).unwrap();
+    let rejected = body["data"]["children"][2].clone();
+    body["data"]["children"] = json!([rejected]);
+    let mock = setup.server.mock(|when, then| {
+        when.method(POST)
+            .path("/orders/regular")
+            .form_urlencoded_tuple("autoslice", "true");
+        then.status(200).json_body(body);
+    });
+    let args = [PLACE, &["--autoslice", "--confirm"]].concat();
+    let out = setup.run(Path::new(env!("CARGO_BIN_EXE_kite")), &args, false);
+    assert_eq!(out.status.code(), Some(0));
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(text.contains("1 of 2 slices failed"), "{text}");
+    assert!(text.contains("  Order ID  1914227164488687616\n"), "{text}");
+    assert!(text.contains("  Slice 2   failed:"), "{text}");
+    mock.assert_calls(1);
+}
+
+#[test]
 fn logout_is_immediate_and_preserves_live_json_on_both_outcomes() {
     for (name, status, body) in [
         ("logout", 200, json!({"status":"success","data":true})),

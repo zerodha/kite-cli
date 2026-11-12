@@ -148,6 +148,28 @@ pub fn wire_value<T: DeserializeOwned>(value: &str) -> kiteconnect::Result<T> {
         .map_err(|_| kiteconnect::Error::InvalidInput("invalid order parameter"))
 }
 
+/// Checks that depend on more than one flag, which clap cannot express.
+///
+/// # Errors
+/// Returns an error if the flags describe an order Kite cannot accept as written.
+pub fn validate_order_place(args: &OrderPlaceArgs) -> Result<()> {
+    let positive = |value: Option<f64>| value.is_some_and(|value| value > 0.0);
+    if matches!(args.order_type.as_str(), "LIMIT" | "SL") && !positive(args.price) {
+        bail!("--price must be greater than 0 for LIMIT and SL orders");
+    }
+    if matches!(args.order_type.as_str(), "SL" | "SL-M") && !positive(args.trigger_price) {
+        bail!("--trigger-price must be greater than 0 for SL and SL-M orders");
+    }
+    if args.validity_ttl.is_some() && args.validity.as_deref() != Some("TTL") {
+        bail!("--validity-ttl requires --validity TTL");
+    }
+    if args.variety != "iceberg" && (args.iceberg_legs.is_some() || args.iceberg_quantity.is_some())
+    {
+        bail!("--iceberg-legs and --iceberg-quantity require --variety iceberg");
+    }
+    Ok(())
+}
+
 /// # Errors
 /// Returns an error if an order parameter is not a supported wire value.
 pub fn order_place_params(args: &OrderPlaceArgs) -> kiteconnect::Result<OrderParams> {
@@ -443,8 +465,123 @@ fn read_one_json(inline: Option<&str>, file: Option<&Path>, name: &str) -> Resul
 
 #[cfg(test)]
 mod tests {
-    use super::{csv_records, gtt_payload, parse_key_values};
-    use crate::cli::{ConfirmArgs, GttWriteArgs};
+    use super::{csv_records, gtt_payload, parse_key_values, validate_order_place};
+    use crate::cli::{Cli, Commands, ConfirmArgs, GttWriteArgs, OrdersCommands};
+    use clap::Parser;
+
+    fn place_error(extra: &[&str]) -> Option<String> {
+        let mut args = vec![
+            "kite",
+            "orders",
+            "place",
+            "--exchange",
+            "NFO",
+            "--tradingsymbol",
+            "NIFTY26NOVFUT",
+            "--transaction-type",
+            "BUY",
+            "--product",
+            "NRML",
+            "--quantity",
+            "75",
+        ];
+        args.extend(extra);
+        let Some(Commands::Orders {
+            command: OrdersCommands::Place(args),
+        }) = Cli::try_parse_from(args).unwrap().command
+        else {
+            panic!("expected orders place")
+        };
+        validate_order_place(&args)
+            .err()
+            .map(|error| error.to_string())
+    }
+
+    #[test]
+    fn order_flags_that_contradict_each_other_are_refused() {
+        for (extra, message) in [
+            (
+                &["--order-type", "LIMIT", "--price", "0"][..],
+                "--price must be greater than 0 for LIMIT and SL orders",
+            ),
+            (
+                &[
+                    "--order-type",
+                    "SL",
+                    "--price",
+                    "0",
+                    "--trigger-price",
+                    "99",
+                ],
+                "--price must be greater than 0 for LIMIT and SL orders",
+            ),
+            (
+                &["--order-type", "sl-m", "--trigger-price", "0"],
+                "--trigger-price must be greater than 0 for SL and SL-M orders",
+            ),
+            (
+                &["--order-type", "MARKET", "--validity-ttl", "5"],
+                "--validity-ttl requires --validity TTL",
+            ),
+            (
+                &[
+                    "--order-type",
+                    "MARKET",
+                    "--validity",
+                    "DAY",
+                    "--validity-ttl",
+                    "5",
+                ],
+                "--validity-ttl requires --validity TTL",
+            ),
+            (
+                &["--order-type", "MARKET", "--iceberg-legs", "3"],
+                "--iceberg-legs and --iceberg-quantity require --variety iceberg",
+            ),
+            (
+                &["--order-type", "MARKET", "--iceberg-quantity", "25"],
+                "--iceberg-legs and --iceberg-quantity require --variety iceberg",
+            ),
+        ] {
+            assert_eq!(place_error(extra).as_deref(), Some(message), "{extra:?}");
+        }
+    }
+
+    #[test]
+    fn complete_orders_pass_validation() {
+        for extra in [
+            &["--order-type", "MARKET"][..],
+            &["--order-type", "MARKET", "--price", "0"],
+            &["--order-type", "LIMIT", "--price", "100"],
+            &[
+                "--order-type",
+                "SL",
+                "--price",
+                "100",
+                "--trigger-price",
+                "99",
+            ],
+            &["--order-type", "SL-M", "--trigger-price", "99"],
+            &[
+                "--order-type",
+                "MARKET",
+                "--validity",
+                "ttl",
+                "--validity-ttl",
+                "5",
+            ],
+            &[
+                "--order-type",
+                "MARKET",
+                "--variety",
+                "ICEBERG",
+                "--iceberg-legs",
+                "3",
+            ],
+        ] {
+            assert_eq!(place_error(extra), None, "{extra:?}");
+        }
+    }
 
     fn gtt_args(trigger_type: &str, trailing_points: Option<f64>) -> GttWriteArgs {
         GttWriteArgs {

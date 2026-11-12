@@ -157,7 +157,7 @@ async fn params(
                 .or_else(|| {
                     current
                         .filter(|alert| alert.rhs_type == "instrument")
-                        .and_then(|alert| alert.rhs_attribute.as_deref())
+                        .and_then(|alert| stored(alert.rhs_attribute.as_deref()))
                 })
                 .unwrap_or("LastTradedPrice"),
         ));
@@ -171,21 +171,22 @@ async fn params(
             Ok(params.rhs_constant(alert.rhs_constant))
         }
         "instrument" => Ok(params.rhs_instrument(
-            alert
-                .rhs_exchange
-                .as_deref()
+            stored(alert.rhs_exchange.as_deref())
                 .context("stored alert has no right-hand exchange")?,
-            alert
-                .rhs_tradingsymbol
-                .as_deref()
+            stored(alert.rhs_tradingsymbol.as_deref())
                 .context("stored alert has no right-hand symbol")?,
             args.rhs_attribute
                 .as_deref()
-                .or(alert.rhs_attribute.as_deref())
+                .or(stored(alert.rhs_attribute.as_deref()))
                 .context("stored alert has no right-hand attribute")?,
         )),
         other => bail!("unsupported right-hand condition type: {other}"),
     }
+}
+
+/// Kite sends empty strings, not nulls, for unset right-hand fields.
+fn stored(value: Option<&str>) -> Option<&str> {
+    value.filter(|value| !value.is_empty())
 }
 
 async fn resolve_instrument(rt: &Runtime, requested: &str) -> Result<(String, String)> {

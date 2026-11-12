@@ -154,15 +154,15 @@ The default workspace at session start. It is strictly read-only.
 
 ### Portfolio: Positions, MF, Holdings, Funds
 
-**Positions** displays your open and closed positions for the day: product, symbol, net quantity, average price, live LTP, live P&L, and day change `%`. A summary header above the table shows total P&L (Kite's `pnl`, including carried-forward derivatives positions) broken down into realised and unrealised P&L, alongside the `open/total` position count. A closed position (net quantity `0`) counts entirely as realised, and its symbol and P&L are greyed out.
+**Positions** displays your open and closed positions for the day: product, symbol, net quantity, average price, live LTP, live P&L, and change `%` from the average price (Kite Web's `Chg.`; a short shows a price fall as negative). A summary header above the table shows total P&L (Kite's `pnl`, including carried-forward derivatives positions) broken down into realised and unrealised P&L, alongside the `open/total` position count. A closed position (net quantity `0`) counts entirely as realised, and its symbol and P&L are greyed out.
 
 - **Trade or exit:** Press `b` or `s` to open the order ticket. Pressing `s` on a long position (or `b` on a short position) pre-fills the quantity required to exit.
 - **Convert product:** Press `c` to open the position conversion modal (for example, `MIS` to `CNC` or `NRML`).
 - **Chart:** Press `Enter` to open an inline candlestick chart for the selected position; press `Enter` or `Esc` to close it. The instrument does not need to be in a watchlist.
-- **Alerts and sorting:** Press `a` to create a price alert for the selected position. Press `S` to cycle the sort column (`P&L`, `quantity`, `day %`, `symbol`).
+- **Alerts and sorting:** Press `a` to create a price alert for the selected position. Press `S` to cycle the sort column (`P&L`, `quantity`, `chg %`, `symbol`).
 - **Live streaming:** Positions and holdings subscribe to WebSocket LTP ticks automatically, so P&L updates in real time even for instruments not present in your watchlist.
 
-**Holdings** displays your demat equity holdings: symbol, quantity, average cost, live LTP, current value, P&L, P&L `%`, and day `%`. The pane title displays total holdings value, total P&L, and day P&L (omitting summary figures if the pane is too narrow rather than truncating them). Discrepant or unpriced holdings display `N/A` and are excluded from portfolio totals, matching Kite Web. The pane refreshes every 30 seconds.
+**Holdings** displays your demat equity holdings: symbol, quantity, average cost, live LTP, current value, P&L, change `%` from the average cost (Kite Web's `Net chg.`), and day `%`. The pane title displays total holdings value, total P&L, and day P&L (omitting summary figures if the pane is too narrow rather than truncating them). Discrepant or unpriced holdings display `N/A` and are excluded from portfolio totals, matching Kite Web. The pane refreshes every 30 seconds.
 
 - **Trade:** Press `b` or `s` to open the order ticket. Pressing `s` pre-fills the free (unpledged) quantity.
 - **GTT stop-loss / target:** Press `g` to open a `SELL` GTT ticket pre-filled with the holding's free quantity.

@@ -235,7 +235,7 @@ mod width_render_tests {
             ("LTP", "30,000.00".to_string()),
             ("VALUE", "₹4,50,000".to_string()),
             ("P&L", PNL_FULL.to_string()),
-            ("P&L%", "+393.59%".to_string()),
+            ("CHG%", "+393.59%".to_string()),
             ("DAY%", "+20.00%".to_string()),
         ]
     }
@@ -882,13 +882,13 @@ mod slack_layout_render_tests {
             &app,
             draw_holdings,
             [
-                "  SYMBOL          QTY         LTP         VALUE          P&L   P&L% ▼     DAY%",
+                "  SYMBOL          QTY         LTP         VALUE          P&L   CHG% ▼     DAY%",
                 "▶ NSE:DIVISL…      15   30,000.00     ₹4,50,000 +3,58,831.05 +393.59%  +20.00%",
                 "  NSE:BAJAJF…      15   30,000.00     ₹4,50,000 +3,58,831.05 +393.59%  +20.00%",
             ],
         );
         let spread = [
-            "   SYMBOL                         QTY           AVG           LTP           VALUE            P&L     P&L% ▼       DAY%",
+            "   SYMBOL                         QTY           AVG           LTP           VALUE            P&L     CHG% ▼       DAY%",
             " ▶ NSE:DIVISLAB                    15      6,077.93     30,000.00       ₹4,50,000   +3,58,831.05   +393.59%    +20.00%",
             "   NSE:BAJAJFINSV                  15      6,077.93     30,000.00       ₹4,50,000   +3,58,831.05   +393.59%    +20.00%",
         ];

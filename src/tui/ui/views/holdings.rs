@@ -33,7 +33,7 @@ pub(super) const HOLDINGS_COLS: [FitCol; 8] = [
     col(11, 2),               // LTP
     col(HOLDINGS_VALUE_W, 5), // VALUE
     col(HOLDINGS_PNL_W, 1),   // P&L
-    col(8, 4),                // P&L%
+    col(8, 4),                // CHG%
     col(8, 6),                // DAY%
 ];
 
@@ -44,7 +44,7 @@ pub(super) const HOLDINGS_LABELS: [(&str, bool); 8] = [
     ("LTP", true),
     ("VALUE", true),
     ("P&L", true),
-    ("P&L%", true),
+    ("CHG%", true),
     ("DAY%", true),
 ];
 

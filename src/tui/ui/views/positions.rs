@@ -117,7 +117,7 @@ pub(super) const POS_COLS: [FitCol; 7] = [
     col(11, 5),          // AVG
     col(11, 2),          // LTP
     col(POS_PNL_W, 1),   // P&L
-    col(8, 4),           // DAY%
+    col(8, 4),           // CHG%
 ];
 
 pub(super) const POS_LABELS: [(&str, bool); 7] = [
@@ -127,7 +127,7 @@ pub(super) const POS_LABELS: [(&str, bool); 7] = [
     ("AVG", true),
     ("LTP", true),
     ("P&L", true),
-    ("DAY%", true),
+    ("CHG%", true),
 ];
 
 fn position_row(
@@ -139,11 +139,7 @@ fn position_row(
     let live_ltp = app.live_ltp(position.instrument_token);
     let pnl = crate::tui::data::position_live_pnl(position, live_ltp);
     let ltp = live_ltp.unwrap_or(position.last_price);
-    let day_pct = if position.close_price > 0.0 {
-        Some((ltp - position.close_price) / position.close_price * 100.0)
-    } else {
-        None
-    };
+    let chg_pct = crate::tui::data::position_change_pct(position, ltp);
     let closed = position.quantity == 0;
     let (qty_style, pnl_style) = if closed {
         (format::dim(), format::dim())
@@ -173,8 +169,8 @@ fn position_row(
             },
             &|| {
                 right_styled(
-                    day_pct.map_or_else(|| ".".into(), format::percent),
-                    day_pct.map(format::change_style).unwrap_or_default(),
+                    chg_pct.map_or_else(|| ".".into(), format::percent),
+                    chg_pct.map(format::change_style).unwrap_or_default(),
                 )
             },
         ],

@@ -7,10 +7,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- An autoslice order placed from the TUI order ticket shows an error toast when Kite rejects a slice. The toast counts the failed slices and gives each one's reason. It previously showed only the first order ID as placed. This also covers orders the ticket slices by itself above the freeze quantity.
+
+## [0.2.3] - 2026-11-12
+
+### Changed
+
+- Positions shows `CHG%`, each position's move from its average price like Kite Web's `Chg.`, instead of the instrument's day change. A short shows a price fall as negative, as Kite does. `S` sorts by it as `chg%`.
+- Holdings renames its `P&L%` column to `CHG%` to match. The values are unchanged.
+
+### Fixed
+
 - `kite alerts modify --rhs` on a constant alert now defaults the right-hand attribute to `LastTradedPrice`, as the help says. It previously sent an empty attribute.
 - `kite alerts modify` treats an empty stored right-hand exchange, symbol or attribute as missing. It previously sent the empty value.
 - `kite orders place --autoslice` lists each slice's order ID, or the reason it failed, and the headline counts failed slices. It previously showed only the parent order ID, so a rejected slice went unnoticed.
-- An autoslice order placed from the TUI order ticket shows an error toast when Kite rejects a slice. The toast counts the failed slices and gives each one's reason. It previously showed only the first order ID as placed. This also covers orders the ticket slices by itself above the freeze quantity.
 
 ## [0.2.2] - 2026-11-11
 

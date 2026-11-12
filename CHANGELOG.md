@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-12
+
 ### Changed
 
 - Positions shows `CHG%`, each position's move from its average price like Kite Web's `Chg.`, instead of the instrument's day change. A short shows a price fall as negative, as Kite does. `S` sorts by it as `chg%`.

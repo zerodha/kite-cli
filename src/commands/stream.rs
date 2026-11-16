@@ -21,6 +21,17 @@ pub async fn tui(rt: &Runtime, args: TuiArgs) -> Result<Output> {
     Ok(Output::None)
 }
 
+/// The error for a ticker that closed, with a login hint when Kite rejected
+/// the session. A close can arrive before or after the subscribe call.
+fn closed(reason: CloseReason) -> anyhow::Error {
+    match reason {
+        CloseReason::AuthRejected(message) => {
+            anyhow::anyhow!("{message}; run `kite auth login`")
+        }
+        reason => anyhow::anyhow!(reason),
+    }
+}
+
 async fn ticks(rt: &Runtime, args: StreamTicksArgs) -> Result<Output> {
     let (tokens, labels) = resolve_tokens(rt, &args).await?;
     if tokens.is_empty() {
@@ -35,7 +46,7 @@ async fn ticks(rt: &Runtime, args: StreamTicksArgs) -> Result<Output> {
     let (ticker, mut rx) = client.ticker().url(url).spawn()?;
     if let Err(error) = ticker.subscribe(&tokens, args.mode.into()) {
         if let Some(TickerEvent::Closed(reason)) = rx.recv().await {
-            bail!(reason);
+            return Err(closed(reason));
         }
         return Err(error.into());
     }
@@ -92,10 +103,7 @@ async fn ticks(rt: &Runtime, args: StreamTicksArgs) -> Result<Output> {
                 }
             }
             TickerEvent::Closed(CloseReason::Requested) => break,
-            TickerEvent::Closed(CloseReason::AuthRejected(message)) => {
-                bail!("{message}; run `kite auth login`")
-            }
-            TickerEvent::Closed(reason) => bail!(reason),
+            TickerEvent::Closed(reason) => return Err(closed(reason)),
             _ => {}
         }
     }
@@ -238,6 +246,17 @@ fn write_tick(out: &mut impl Write, tick: &Tick) -> io::Result<bool> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_rejected_session_asks_for_login_whenever_the_close_arrives() {
+        use kiteconnect::ticker::CloseReason;
+        assert_eq!(
+            super::closed(CloseReason::AuthRejected("WebSocket auth rejected".into())).to_string(),
+            "WebSocket auth rejected; run `kite auth login`"
+        );
+        let refused = super::closed(CloseReason::HandshakeRejected("refused".into())).to_string();
+        assert!(!refused.contains("kite auth login"), "{refused}");
+    }
+
     use super::*;
 
     #[test]

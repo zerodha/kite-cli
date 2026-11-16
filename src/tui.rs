@@ -25,7 +25,7 @@ mod workspace;
 use crate::app::runtime::Runtime;
 use crate::cli::TuiArgs;
 use crate::tui::app::App;
-use crate::tui::event::AppEvent;
+use crate::tui::event::{AppEvent, SessionChange};
 use crate::tui::login::LoginReason;
 use crate::tui::marketwatch::{WatchId, WatchItem};
 use crate::tui::notes::Pad;
@@ -47,6 +47,8 @@ enum SessionExit {
     Quit,
     Relogin,
     Logout,
+    SignedOut,
+    Restart,
 }
 
 /// # Errors
@@ -64,9 +66,17 @@ pub async fn run(rt: &Runtime, args: TuiArgs) -> Result<()> {
                 login::run_login(rt, LoginReason::Expired).await?;
             }
             SessionExit::Logout => {
-                rt.clear_session()?;
+                let end = crate::app::logout::end_session(rt).await?;
+                if let Some(warning) = end.warning() {
+                    eprintln!("kite: warning: {warning}");
+                }
+                for detail in end.details() {
+                    eprintln!("kite: {detail}");
+                }
                 return Ok(());
             }
+            SessionExit::SignedOut => login::run_login(rt, LoginReason::SignedOut).await?,
+            SessionExit::Restart => {}
         }
     }
 }
@@ -110,7 +120,20 @@ async fn run_session(rt: &Runtime, args: &TuiArgs) -> Result<SessionExit> {
     app.uuid = rt.app_uuid()?;
     let ticker_url =
         url::Url::parse(rt.resolve_credentials()?.ticker_url()?).context("invalid ticker URL")?;
-    let tasks = spawn_session_tasks(client, ticker_url, events_tx, &mut app, &settings)?;
+    let in_use = rt.resolve_credentials()?.access_token;
+    let saved = rt
+        .saved_access_token()?
+        .filter(|saved| in_use.as_ref() == Some(saved));
+    let mut tasks =
+        spawn_session_tasks(client, ticker_url, events_tx.clone(), &mut app, &settings)?;
+    if let Some(token) = saved {
+        tasks.push(event::spawn_session_watch(
+            rt.clone(),
+            token,
+            std::time::Duration::from_secs(2),
+            events_tx,
+        ));
+    }
 
     let mut terminal = match setup_terminal() {
         Ok(terminal) => terminal,
@@ -252,6 +275,11 @@ where
         }
         if app.ws_fatal.as_deref() == Some(app::SESSION_EXPIRED) {
             return Ok(SessionExit::Relogin);
+        }
+        match app.session_change {
+            Some(SessionChange::SignedOut) => return Ok(SessionExit::SignedOut),
+            Some(SessionChange::Replaced) => return Ok(SessionExit::Restart),
+            None => {}
         }
     }
 }
@@ -469,6 +497,25 @@ mod tests {
         assert!(matches!(exit, SessionExit::Quit));
         assert_ne!(app.ws_fatal.as_deref(), Some(app::SESSION_EXPIRED));
         std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_saved_session_change_ends_the_tui_session() {
+        for (change, name) in [
+            (SessionChange::SignedOut, "signed-out"),
+            (SessionChange::Replaced, "replaced"),
+        ] {
+            let (mut app, mut terminal, events_tx, mut events_rx, path) = session(name);
+            events_tx.try_send(AppEvent::Session(change)).unwrap();
+            let exit = event_loop(&mut terminal, &mut app, &mut events_rx)
+                .await
+                .unwrap();
+            match change {
+                SessionChange::SignedOut => assert!(matches!(exit, SessionExit::SignedOut)),
+                SessionChange::Replaced => assert!(matches!(exit, SessionExit::Restart)),
+            }
+            std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+        }
     }
 
     #[tokio::test]

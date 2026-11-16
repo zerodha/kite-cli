@@ -1,10 +1,10 @@
+use crate::app::logout::end_session;
 use crate::app::output::Output;
 use crate::app::render::{self, Doc, Term};
 use crate::app::runtime::{Runtime, SESSION_FIELDS};
 use crate::app_api::trusted::TrustedAuth;
 use crate::cli::AuthCommands;
 use anyhow::{Context, Result, bail};
-use kiteconnect::error::sanitize_error;
 use serde_json::json;
 use std::io::{self, IsTerminal, Write};
 
@@ -27,52 +27,31 @@ pub async fn handle(rt: &Runtime, command: AuthCommands) -> Result<Output> {
 }
 
 async fn logout(rt: &Runtime) -> Result<Output> {
-    let (_, _, config) = rt.load_config()?;
-    let mut revoked = false;
-    let had_session = config.access_token.is_some();
-    let mut warning = None;
-    if let Some(access_token) = config.access_token {
-        let revoke = async {
-            let creds = rt.resolve_credentials()?;
-            TrustedAuth::new(creds.api_root()?, creds.api_key()?, &rt.app_uuid()?)?
-                .invalidate(&access_token)
-                .await
-        };
-        match revoke.await {
-            Ok(()) => revoked = true,
-            Err(err) => {
-                let message = sanitize_error(&err.to_string());
-                if rt.json {
-                    eprintln!(
-                        "warning: could not revoke session: {message}; the token may remain active until expiry. Sign in on Kite and log out there to revoke it"
-                    );
-                }
-                warning = Some(message);
-            }
-        }
+    let end = end_session(rt).await?;
+    let warning = end.warning();
+    if rt.json
+        && let Some(warning) = &warning
+    {
+        eprintln!("warning: {warning}");
     }
-    let path = rt.clear_session()?;
+    let details = end.details();
     Ok(Output::view(
         json!({
             "logged_out": true,
-            "revoked": revoked,
+            "revoked": end.revoked,
+            "earlier_revoked": end.earlier_revoked,
+            "revoke_pending": end.pending,
             "cleared_config_fields": SESSION_FIELDS,
-            "path": path,
+            "path": end.path,
         }),
-        move |value, doc| {
-            if let Some(message) = warning.as_deref() {
-                doc.warn(&format!("could not revoke the session on Kite: {message}; the token may remain active until expiry. Sign in on Kite and log out there to revoke it"));
+        move |_, doc| {
+            if let Some(warning) = warning.as_deref() {
+                doc.warn(warning);
             }
             doc.success("Logged out");
-            let path = render::s(value, "path");
-            let detail = if revoked {
-                format!("Session revoked on Kite and removed from {path}")
-            } else if had_session {
-                format!("Session removed from {path}; the token expires at 6 AM IST")
-            } else {
-                "No saved session; nothing to revoke.".into()
-            };
-            doc.line(vec![format!("  {detail}").into()]);
+            for detail in &details {
+                doc.line(vec![format!("  {detail}").into()]);
+            }
         },
     ))
 }

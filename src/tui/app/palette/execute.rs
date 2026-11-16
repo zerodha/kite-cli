@@ -126,7 +126,7 @@ impl App {
                     "LOGOUT".to_string(),
                     vec![(
                         "Session".to_string(),
-                        "clear saved Kite credentials and exit".to_string(),
+                        "revoke on Kite, clear saved credentials and exit".to_string(),
                     )],
                     PendingAction::Logout,
                 )))),

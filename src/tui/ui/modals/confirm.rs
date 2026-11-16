@@ -224,7 +224,9 @@ fn confirm_copy(state: &ConfirmState) -> ConfirmCopy {
             title: confirm(),
             subtitle: "Clear stored session and exit",
             section: "Session",
-            impact: &["Clears the saved session and exits the terminal."],
+            impact: &[
+                "Revokes the session on Kite, clears the saved session and exits the terminal.",
+            ],
             wide_note: None,
         },
     }
@@ -727,13 +729,14 @@ mod render_tests {
             "LOGOUT".to_string(),
             vec![(
                 "Session".to_string(),
-                "clear saved Kite credentials and exit".to_string(),
+                "revoke on Kite, clear saved credentials and exit".to_string(),
             )],
             PendingAction::Logout,
         );
         let text = modal_ascii(80, 24, |frame| draw_confirm(frame, &state, &app));
         assert!(text.contains("Clear stored session and exit"), "{text}");
         assert!(text.contains("[y/Enter Clear session and exit]"), "{text}");
+        assert!(text.contains("Revokes the session on Kite"), "{text}");
     }
 
     #[test]

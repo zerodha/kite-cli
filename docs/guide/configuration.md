@@ -30,6 +30,7 @@ Run `kite config path` to print the active configuration path. The file does not
 | :--- | :--- | :--- |
 | `user_id` | `kite auth login` | Your Kite user ID (offered as the default on subsequent logins) |
 | `access_token` | `kite auth login` | Active session token (removed by `kite auth logout`) |
+| `revoke_pending` | `kite auth logout` | Tokens from earlier logouts that Kite has not confirmed as revoked; the next `kite auth logout` retries them |
 | `app_uuid` | `kite auth login` | Random v4 UUID sent as the app identity (`kite` generates an in-memory identity for read commands if none is saved) |
 | `api_key` | User | Kite API key (required only when running a source build without a built-in key) |
 | `api_root` | User | Base REST API URL (required only when running a source build without a built-in URL) |
@@ -97,7 +98,7 @@ When compiling from source with `cargo build` or `cargo install`, these environm
 `kite auth login` writes `user_id`, `access_token`, and `app_uuid` to `config.json`. It never stores your password or 2FA code.
 
 - **Daily expiry** — Kite access tokens expire daily around **06:00 IST**. `kite` never renews tokens automatically. When Kite rejects an expired token with `TokenException`, CLI commands exit with an error prompting you to run `kite auth login`, and the TUI returns to its sign-in screen.
-- **Logout** — `kite auth logout` revokes the saved token on Kite's servers and removes `access_token` from `config.json`, while preserving `user_id`, `app_uuid`, and endpoint settings. If remote revocation fails, `kite` warns you and still deletes the local token; sign in to Kite Web and log out there to ensure server-side revocation.
+- **Logout** — `kite auth logout` revokes the saved token on Kite's servers and removes `access_token` from `config.json`, while preserving `user_id`, `app_uuid`, and endpoint settings. If remote revocation fails, `kite` warns you, still deletes the local token, and keeps it in `revoke_pending` so the next `kite auth logout` retries the revocation and reports the result. A TUI that is already running notices the cleared session within a few seconds and returns to the sign-in screen. Logging out from the TUI revokes the token the same way.
 
 ### `KITE_ACCESS_TOKEN`
 

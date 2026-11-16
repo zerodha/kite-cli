@@ -116,6 +116,14 @@ impl CancelOrdersResult {
     }
 }
 
+/// Kite's reply to an order write.
+#[derive(Debug, PartialEq, Eq)]
+pub struct OrderReply {
+    pub order_id: String,
+    /// Autoslice slices that failed or could not be read, as the CLI words them.
+    pub slice_problems: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct AlertListSequence(pub u64);
 
@@ -158,7 +166,7 @@ pub enum DataEvent {
         result: Result<Box<Movers>, String>,
     },
     Instruments(Result<Arc<InstrumentStore>, String>),
-    OrderPlaced(Result<String, String>),
+    OrderPlaced(Result<OrderReply, String>),
     OrderModified(Result<String, String>),
     PositionConverted(Result<(), String>),
     HoldingsAuthorised(Result<String, String>),
@@ -714,7 +722,10 @@ pub fn spawn_place_order(
         let result = place_with_amo_fallback(&client, &variety, form)
             .await
             .map_err(api_write_err)
-            .map(|value| response_id(&value, "order_id").unwrap_or_else(|| "unknown".to_string()));
+            .map(|value| OrderReply {
+                order_id: response_id(&value, "order_id").unwrap_or_else(|| "unknown".to_string()),
+                slice_problems: crate::app::render::slice_problems(&value),
+            });
         send(&tx, DataEvent::OrderPlaced(result)).await;
     });
 }
@@ -1631,7 +1642,14 @@ mod tests {
             );
 
             match next_event(&mut rx).await {
-                DataEvent::OrderPlaced(Ok(id)) => assert_eq!(id, expected, "{data}"),
+                DataEvent::OrderPlaced(Ok(reply)) => assert_eq!(
+                    reply,
+                    super::OrderReply {
+                        order_id: expected.to_string(),
+                        slice_problems: None,
+                    },
+                    "{data}"
+                ),
                 other => panic!("{data}: unexpected {other:?}"),
             }
             regular.assert_calls_async(1).await;
@@ -1794,6 +1812,52 @@ mod tests {
         .expect("converted order");
 
         assert_eq!(order["order_id"], "amo-1");
+        regular.assert_calls(1);
+        amo.assert_calls(1);
+    }
+
+    #[tokio::test]
+    async fn an_amo_retry_reports_failed_autoslice_slices_too() {
+        let server = MockServer::start_async().await;
+        let regular = server.mock(|when, then| {
+            when.method(POST)
+                .path("/orders/regular")
+                .form_urlencoded_tuple("autoslice", "true");
+            then.status(400)
+                .header("content-type", "application/json")
+                .body(SWITCH_TO_AMO);
+        });
+        let amo = server.mock(|when, then| {
+            when.method(POST)
+                .path("/orders/amo")
+                .form_urlencoded_tuple("autoslice", "true")
+                .body_includes("tag=switch_to_amo");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(include_str!("../../mock_responses/autoslice_response.json"));
+        });
+        let (tx, mut rx) = mpsc::channel(1);
+
+        super::spawn_place_order(
+            connect_client(&server),
+            tx,
+            "regular".to_string(),
+            vec![("autoslice".to_string(), "true".to_string())],
+        );
+
+        match next_event(&mut rx).await {
+            DataEvent::OrderPlaced(Ok(reply)) => assert_eq!(
+                reply,
+                super::OrderReply {
+                    order_id: "1914227164488687616".to_string(),
+                    slice_problems: Some(
+                        "1 of 5 slices failed; Slice 4 failed: Insufficient funds. Required margin is 228365.92 but available margin is 228358.50. (MarginException)"
+                            .to_string()
+                    ),
+                }
+            ),
+            other => panic!("unexpected {other:?}"),
+        }
         regular.assert_calls(1);
         amo.assert_calls(1);
     }

@@ -1,9 +1,9 @@
 use super::navigation::tests::stocked;
 use super::test_support::{
-    H, W, ato_alert, char_key, char_key_code, master_inst, position, render, screen, server_alert,
-    test_app,
+    H, W, ato_alert, char_key, char_key_code, master_inst, mock_app, open_and_review, position,
+    render, screen, server_alert, test_app,
 };
-use super::{Modal, OrderDetailState, SearchPurpose, SearchState};
+use super::{Modal, OrderDetailState, SearchPurpose, SearchState, ToastLevel};
 use crate::tui::candles::SeriesKey;
 use crate::tui::data::{AlertListSequence, DataEvent, Order, OrderHistoryRequest};
 use crate::tui::event::AppEvent;
@@ -434,4 +434,61 @@ fn order_detail_shows_the_exchange_order_id_or_why_it_is_missing() {
     assert!(rejected.contains("Exch ID    not assigned"), "{rejected}");
     assert!(!rejected.contains("Exch time"), "{rejected}");
     assert!(rejected.contains("Insufficient funds."), "{rejected}");
+}
+
+#[tokio::test]
+async fn a_rejected_autoslice_slice_is_reported() {
+    let failed: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../mock_responses/autoslice_response.json"
+    ))
+    .expect("autoslice response");
+    let mut placed = failed.clone();
+    placed["data"]["children"]
+        .as_array_mut()
+        .expect("children")
+        .remove(2);
+    for (reply, level, text) in [
+        (
+            failed,
+            ToastLevel::Error,
+            "order placed: 1914227164488687616, 1 of 5 slices failed; Slice 4 failed: Insufficient funds. Required margin is 228365.92 but available margin is 228358.50. (MarginException)",
+        ),
+        (
+            placed,
+            ToastLevel::Success,
+            "order placed: 1914227164488687616",
+        ),
+    ] {
+        let server = httpmock::MockServer::start_async().await;
+        let place = server
+            .mock_async(|when, then| {
+                when.method(httpmock::Method::POST)
+                    .path("/orders/regular")
+                    .form_urlencoded_tuple("autoslice", "true");
+                then.status(200).json_body(reply);
+            })
+            .await;
+        let (mut app, mut events) = mock_app(&server);
+        // Above the freeze quantity the ticket sends autoslice by itself.
+        open_and_review(&mut app, "NSE", "INFY", 408_065, |state| {
+            state.autoslice = false;
+            state.freeze_quantity = Some(1800);
+            state.qty = "9000".to_string();
+            state.price = "1500".to_string();
+        });
+        app.on_key(char_key('y'));
+        loop {
+            let event = tokio::time::timeout(std::time::Duration::from_secs(5), events.recv())
+                .await
+                .expect("the order reply arrives")
+                .expect("the event channel is open");
+            if matches!(event, AppEvent::Data(DataEvent::OrderPlaced(_))) {
+                app.on_event(event);
+                break;
+            }
+        }
+        let toast = app.toasts().back().expect("a toast");
+        assert_eq!((toast.level, toast.text.as_str()), (level, text));
+        place.assert_calls_async(1).await;
+    }
 }

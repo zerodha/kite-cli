@@ -64,6 +64,7 @@ impl App {
             chart_panel: None,
             should_quit: false,
             should_logout: false,
+            session_change: None,
             exit_notice: None,
             ws_state: WsState::Connecting,
             ws_fatal: None,

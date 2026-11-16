@@ -33,6 +33,9 @@ pub struct ConfigFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
     pub access_token: Option<String>,
+    /// Tokens from earlier logouts that Kite has not confirmed as revoked.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub revoke_pending: Vec<String>,
 }
 
 pub const SESSION_FIELDS: [&str; 1] = ["access_token"];
@@ -52,6 +55,7 @@ impl std::fmt::Debug for ConfigFile {
             .field("api_key", &self.api_key)
             .field("user_id", &self.user_id)
             .field("access_token", &redacted_option(self.access_token.as_ref()))
+            .field("revoke_pending", &self.revoke_pending.len())
             .finish()
     }
 }
@@ -210,14 +214,24 @@ impl Runtime {
             .clone())
     }
 
-    /// Clears [`SESSION_FIELDS`] from the saved config.
+    /// Clears [`SESSION_FIELDS`] from the saved config and records the tokens
+    /// that still need revoking on Kite.
     ///
     /// # Errors
     /// Returns an error if the config cannot be loaded or saved.
-    pub fn clear_session(&self) -> Result<PathBuf> {
+    pub fn clear_session(&self, revoke_pending: Vec<String>) -> Result<PathBuf> {
         let (_, _, mut config) = self.load_config()?;
         config.clear_session();
+        config.revoke_pending = revoke_pending;
         self.save_config(&config)
+    }
+
+    /// The access token saved in the config file, ignoring `KITE_ACCESS_TOKEN`.
+    ///
+    /// # Errors
+    /// Returns an error if the config cannot be loaded.
+    pub fn saved_access_token(&self) -> Result<Option<String>> {
+        Ok(self.load_config()?.2.access_token)
     }
 
     /// # Errors
@@ -429,10 +443,13 @@ mod tests {
             api_root: Some("https://example.invalid".to_string()),
             app_uuid: None,
             ticker_url: None,
+            revoke_pending: vec!["PENDINGSECRET".to_string()],
         };
         let out = format!("{cfg:?}");
         assert!(!out.contains("SECRETVAL123"), "access_token leaked: {out}");
         assert!(out.contains("access_token: Some(\"<redacted>\")"));
+        assert!(out.contains("revoke_pending: 1"), "{out}");
+        assert!(!out.contains("PENDINGSECRET"), "{out}");
         assert!(out.contains("AB1234"));
     }
 
@@ -542,7 +559,7 @@ mod tests {
             assert_eq!(mode, 0o600);
         }
 
-        rt.clear_session().unwrap();
+        rt.clear_session(Vec::new()).unwrap();
         let cleared: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         for field in SESSION_FIELDS {
@@ -649,7 +666,7 @@ mod tests {
             .map(String::as_str)
             .collect();
         assert_eq!(keys, ["access_token", "app_uuid", "user_id"]);
-        rt.clear_session().unwrap();
+        rt.clear_session(Vec::new()).unwrap();
         let config = rt.load_config().unwrap().2;
         assert_eq!(config.access_token, None);
         assert_eq!(config.user_id.as_deref(), Some("AB1234"));

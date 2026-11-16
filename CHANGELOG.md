@@ -15,6 +15,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - SSE IPO rows show Applied only when an application is live. Any order object in Kite's reply used to mark the issue applied, even after every application had failed or been cancelled.
 - The IPO & Bids sections use Kite web's labels: Place bid for GSecs and corporate actions without an order, Give back or Pre-apply for open SSE issues, and order statuses in capitals.
 - `kite stream ticks` always suggests `kite auth login` when Kite rejects the session. If the rejection arrived before the subscription went out, the hint was left off.
+- `kite auth logout` keeps a token it could not revoke on Kite and retries it on the next logout, reporting the result. It previously discarded the token, so a second logout printed "nothing to revoke" while the session was still active on Kite.
+- A running TUI returns to the sign-in screen within a few seconds of `kite auth logout`, and restarts on the new session after a login in another terminal. It previously kept using the token it started with.
+- Logging out from the TUI revokes the session on Kite. It previously only removed the local token.
 
 ## [0.2.3] - 2026-11-12
 

@@ -2,7 +2,9 @@
   "cleared_config_fields": [
     "access_token"
   ],
+  "earlier_revoked": 0,
   "logged_out": true,
   "path": "/home/user/config.json",
+  "revoke_pending": 1,
   "revoked": false
 }

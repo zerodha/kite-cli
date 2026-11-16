@@ -443,6 +443,98 @@ fn logout_is_immediate_and_preserves_live_json_on_both_outcomes() {
 }
 
 #[test]
+fn a_logout_that_cannot_revoke_is_retried_by_the_next_one() {
+    let setup = Setup::new();
+    let binary = Path::new(env!("CARGO_BIN_EXE_kite"));
+    let config = || -> Value { serde_json::from_slice(&fs::read(&setup.config).unwrap()).unwrap() };
+    let logout = || {
+        let output = setup.run(binary, &["auth", "logout"], true);
+        assert_eq!(output.status.code(), Some(0));
+        let body: Value = serde_json::from_slice(&output.stdout).unwrap();
+        (body, String::from_utf8(output.stderr).unwrap())
+    };
+
+    let mut down = setup.server.mock(|when, then| {
+        when.method(DELETE).path("/session/token");
+        then.status(503).json_body(
+            json!({"status":"error","error_type":"NetworkException","message":"unavailable"}),
+        );
+    });
+    let (body, stderr) = logout();
+    assert_eq!(
+        (body["revoked"].clone(), body["revoke_pending"].clone()),
+        (json!(false), json!(1))
+    );
+    assert!(
+        stderr.contains("could not revoke 1 session on Kite"),
+        "{stderr}"
+    );
+    assert_eq!(config()["access_token"], Value::Null);
+    assert_eq!(config()["revoke_pending"], json!(["test-token"]));
+    down.assert_calls(1);
+    down.delete();
+
+    let up = setup.server.mock(|when, then| {
+        when.method(DELETE)
+            .path("/session/token")
+            .query_param("access_token", "test-token");
+        then.status(200)
+            .json_body(json!({"status":"success","data":true}));
+    });
+    let (body, stderr) = logout();
+    assert_eq!(
+        (
+            body["revoked"].clone(),
+            body["earlier_revoked"].clone(),
+            body["revoke_pending"].clone()
+        ),
+        (json!(false), json!(1), json!(0))
+    );
+    assert_eq!(stderr, "");
+    assert_eq!(config().get("revoke_pending"), None);
+    up.assert_calls(1);
+
+    let human = setup.run(binary, &["auth", "logout"], false);
+    assert_eq!(
+        String::from_utf8(human.stdout).unwrap(),
+        "✓ Logged out\n  No saved session; nothing to revoke.\n"
+    );
+    up.assert_calls(1);
+}
+
+#[test]
+fn a_pending_token_kite_already_ended_is_dropped() {
+    let setup = Setup::new();
+    let mut saved: Value = {
+        setup.save_session();
+        serde_json::from_slice(&fs::read(&setup.config).unwrap()).unwrap()
+    };
+    saved["access_token"] = Value::Null;
+    saved["revoke_pending"] = json!(["expired-token"]);
+    fs::write(&setup.config, serde_json::to_vec(&saved).unwrap()).unwrap();
+    let mock = setup.server.mock(|when, then| {
+        when.method(DELETE).path("/session/token");
+        then.status(403).json_body(
+            json!({"status":"error","error_type":"TokenException","message":"Invalid session"}),
+        );
+    });
+    let output = setup.run(
+        Path::new(env!("CARGO_BIN_EXE_kite")),
+        &["auth", "logout"],
+        false,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        "✓ Logged out\n  No saved session.\n  Revoked 1 session on Kite from an earlier logout\n"
+    );
+    assert_eq!(output.stderr, b"");
+    let config: Value = serde_json::from_slice(&fs::read(&setup.config).unwrap()).unwrap();
+    assert_eq!(config.get("revoke_pending"), None);
+    mock.assert_calls(1);
+}
+
+#[test]
 fn doctor_and_paths_are_human_and_json_stays_unchanged() {
     let setup = Setup::new();
     let args = ["doctor", "--no-live"];

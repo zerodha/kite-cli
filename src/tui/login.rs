@@ -22,6 +22,7 @@ const CARD_HEIGHT: u16 = 12;
 pub enum LoginReason {
     FirstRun,
     Expired,
+    SignedOut,
 }
 
 impl LoginReason {
@@ -29,6 +30,7 @@ impl LoginReason {
         match self {
             LoginReason::FirstRun => "Sign in to Kite",
             LoginReason::Expired => "Session expired, please sign in again.",
+            LoginReason::SignedOut => "Signed out with `kite auth logout`, please sign in again.",
         }
     }
 }

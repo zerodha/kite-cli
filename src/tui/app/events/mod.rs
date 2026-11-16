@@ -33,6 +33,7 @@ impl App {
             }
             AppEvent::Ws(event) => self.on_ws(event),
             AppEvent::Data(event) => self.on_data(event),
+            AppEvent::Session(change) => self.session_change = Some(change),
         }
     }
 

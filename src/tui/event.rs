@@ -1,3 +1,4 @@
+use crate::app::runtime::Runtime;
 use crate::tui::data::DataEvent;
 use crossterm::event::{
     Event, EventStream, KeyEvent, KeyEventKind, MouseButton, MouseEvent, MouseEventKind,
@@ -18,6 +19,40 @@ pub enum AppEvent {
     Ws(TickerEvent),
     Data(DataEvent),
     Timer,
+    Session(SessionChange),
+}
+
+/// How the saved session changed under a running TUI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionChange {
+    /// `kite auth logout` cleared it.
+    SignedOut,
+    /// A new login replaced it.
+    Replaced,
+}
+
+/// Reports the first change to the saved access token the TUI started with,
+/// checking every `every`.
+pub fn spawn_session_watch(
+    rt: Runtime,
+    token: String,
+    every: Duration,
+    tx: mpsc::Sender<AppEvent>,
+) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(every);
+        loop {
+            interval.tick().await;
+            let change = match rt.saved_access_token() {
+                Ok(Some(saved)) if saved == token => continue,
+                Ok(Some(_)) => SessionChange::Replaced,
+                Ok(None) => SessionChange::SignedOut,
+                Err(_) => continue,
+            };
+            let _ = tx.send(AppEvent::Session(change)).await;
+            return;
+        }
+    })
 }
 
 pub fn spawn_terminal_events(tx: mpsc::Sender<AppEvent>) -> JoinHandle<()> {
@@ -124,4 +159,55 @@ pub enum WsState {
     Connected,
     Reconnecting,
     Closed,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AppEvent, SessionChange, spawn_session_watch};
+    use crate::app::runtime::Runtime;
+    use crate::cli::Cli;
+    use clap::Parser;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn the_session_watch_reports_a_cleared_or_replaced_token() {
+        for (saved_after, expected) in [
+            (None, SessionChange::SignedOut),
+            (Some("new-token"), SessionChange::Replaced),
+        ] {
+            let dir = std::env::temp_dir().join(format!(
+                "kite-session-watch-{}-{expected:?}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let path = dir.join("config.json");
+            let write = |token: Option<&str>| {
+                std::fs::write(
+                    &path,
+                    serde_json::json!({ "access_token": token }).to_string(),
+                )
+                .unwrap();
+            };
+            write(Some("old-token"));
+            let rt = Runtime::from_cli(
+                &Cli::try_parse_from(["kite", "--config", path.to_str().unwrap()]).unwrap(),
+            );
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            let watch = spawn_session_watch(rt, "old-token".into(), Duration::from_millis(10), tx);
+
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            assert!(
+                rx.try_recv().is_err(),
+                "an unchanged session is not reported"
+            );
+            write(saved_after);
+            let event = rx.recv().await.expect("the change is reported");
+            assert!(
+                matches!(event, AppEvent::Session(change) if change == expected),
+                "{event:?}"
+            );
+            watch.await.unwrap();
+            std::fs::remove_dir_all(&dir).ok();
+        }
+    }
 }

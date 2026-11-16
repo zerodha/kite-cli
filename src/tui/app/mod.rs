@@ -211,6 +211,8 @@ pub struct App {
 
     pub should_logout: bool,
 
+    pub session_change: Option<crate::tui::event::SessionChange>,
+
     exit_notice: Option<String>,
     pub ws_state: WsState,
 

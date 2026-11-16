@@ -639,7 +639,7 @@ fn mf_instrument_commands_reach_network_without_config() {
 }
 
 #[test]
-fn logout_revokes_saved_tokens_and_clears_local_fields_even_on_failure() {
+fn logout_revokes_saved_tokens_and_counts_an_already_invalid_token_as_ended() {
     for status in [200, 403] {
         let server = MockServer::start();
         let mock = server.mock(|when, then| {
@@ -691,7 +691,7 @@ fn logout_revokes_saved_tokens_and_clears_local_fields_even_on_failure() {
         assert_eq!(
             serde_json::from_slice::<Value>(&output.stdout).unwrap(),
             serde_json::json!({
-                "logged_out":true, "revoked":status == 200,
+                "logged_out":true, "revoked":true, "earlier_revoked":0, "revoke_pending":0,
                 "cleared_config_fields":["access_token"], "path":path,
             })
         );
@@ -708,7 +708,7 @@ fn logout_revokes_saved_tokens_and_clears_local_fields_even_on_failure() {
 }
 
 #[test]
-fn logout_clears_saved_session_when_api_values_are_missing() {
+fn logout_clears_saved_session_and_keeps_it_pending_when_api_values_are_missing() {
     let path = env::temp_dir().join(format!("kite-logout-missing-{}.json", std::process::id()));
     for (build_value, mut config, warning) in [
         (
@@ -753,7 +753,7 @@ fn logout_clears_saved_session_when_api_values_are_missing() {
         assert_eq!(
             serde_json::from_slice::<Value>(&output.stdout).unwrap(),
             serde_json::json!({
-                "logged_out":true, "revoked":false,
+                "logged_out":true, "revoked":false, "earlier_revoked":0, "revoke_pending":1,
                 "cleared_config_fields":["access_token"], "path":path,
             })
         );
@@ -765,6 +765,7 @@ fn logout_clears_saved_session_when_api_values_are_missing() {
             .unwrap()
             .retain(|_, value| !value.is_null());
         config["access_token"] = Value::Null;
+        config["revoke_pending"] = serde_json::json!(["SENTINEL-TOKEN"]);
         assert_eq!(
             serde_json::from_str::<Value>(&fs::read_to_string(&path).unwrap()).unwrap(),
             config

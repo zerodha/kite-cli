@@ -80,7 +80,7 @@ kite auth logout
 
 `kite auth logout` revokes the saved access token on Kite's servers and removes `access_token` from `config.json` while retaining your `user_id` for the next login. It takes effect immediately and does not require `--confirm`.
 
-- If remote revocation fails (for example, due to a network error), `kite` warns you and still removes the local token. To ensure the session is terminated on Kite's side, sign in to Kite Web and log out there.
+- If remote revocation fails (for example, due to a network error), `kite` warns you and still removes the local token. It remembers the token, so running `kite auth logout` again once you are online revokes it and says so. A running TUI returns to the sign-in screen once the saved session is gone.
 - If you override your session with the `KITE_ACCESS_TOKEN` environment variable, see [`KITE_ACCESS_TOKEN` logout rules](configuration.md#kite_access_token) — `kite auth logout` only revokes the token stored in `config.json`.
 
 ## Session expiry

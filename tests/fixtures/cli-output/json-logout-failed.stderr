@@ -1,1 +1,1 @@
-warning: could not revoke session: kite API error InputException (HTTP 403): revoke failed; the token may remain active until expiry. Sign in on Kite and log out there to revoke it
+warning: could not revoke 1 session on Kite: kite API error InputException (HTTP 403): revoke failed. A session stays active until 6 AM IST unless revoked; run `kite auth logout` again when Kite is reachable, or log out on Kite

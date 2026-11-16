@@ -3,8 +3,10 @@ use crate::app::output::Output;
 use crate::app::render;
 use crate::app::runtime::Runtime;
 use crate::cli::OrdersCommands;
-use crate::util::{order_modify_params, order_place_params, validate_order_place, wire_value};
-use anyhow::{Result, bail};
+use crate::util::{
+    iceberg_leg_quantity, order_modify_params, order_place_params, validate_order_place, wire_value,
+};
+use anyhow::{Context, Result, bail};
 use serde_json::Value;
 
 pub async fn handle(rt: &Runtime, command: OrdersCommands) -> Result<Output> {
@@ -50,8 +52,14 @@ pub async fn handle(rt: &Runtime, command: OrdersCommands) -> Result<Output> {
             Some(id) => rt.with_session(|api| api.order_trades(&id).raw()).await?,
             None => rt.with_session(|api| api.trades().raw()).await?,
         },
-        OrdersCommands::Place(args) => {
+        OrdersCommands::Place(mut args) => {
             validate_order_place(&args)?;
+            if let Some(legs) = args.iceberg_legs
+                && args.iceberg_quantity.is_none()
+            {
+                let lot = lot_size(rt, &args.exchange, &args.tradingsymbol).await?;
+                args.iceberg_quantity = Some(iceberg_leg_quantity(args.quantity, legs, lot));
+            }
             let variety = wire_value(&args.variety)?;
             let params = order_place_params(&args)?;
             return send_unless_dry_run(
@@ -150,5 +158,19 @@ fn matches_string_field(item: &Value, field: &str, expected: Option<&str>) -> bo
             } else {
                 value.eq_ignore_ascii_case(expected)
             }
+        })
+}
+
+async fn lot_size(rt: &Runtime, exchange: &str, tradingsymbol: &str) -> Result<u32> {
+    let store = crate::instruments::load(&rt.app_uuid()?)
+        .await
+        .map_err(anyhow::Error::msg)?;
+    store
+        .by_exact_symbol(tradingsymbol)
+        .into_iter()
+        .find(|instrument| instrument.exchange.eq_ignore_ascii_case(exchange))
+        .map(|instrument| instrument.lot_size)
+        .with_context(|| {
+            format!("instrument not found: {exchange}:{tradingsymbol}; pass --iceberg-quantity")
         })
 }

@@ -570,7 +570,7 @@ pub struct OrderPlaceArgs {
     /// Number of iceberg legs, between 2 and 50.
     #[arg(long, value_parser = clap::value_parser!(i64).range(2..=50), required_if_eq("variety", "iceberg"))]
     pub iceberg_legs: Option<i64>,
-    /// Quantity per iceberg leg.
+    /// Quantity per iceberg leg. Defaults to Kite web's split: the quantity over the legs, rounded up to whole lots.
     #[arg(long, value_parser = parse_order_quantity)]
     pub iceberg_quantity: Option<i64>,
     /// Auction number for auction variety orders.

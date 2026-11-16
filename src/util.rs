@@ -170,6 +170,15 @@ pub fn validate_order_place(args: &OrderPlaceArgs) -> Result<()> {
     Ok(())
 }
 
+/// Kite web's quantity per iceberg leg: the order split evenly across the
+/// legs, rounded up to a whole number of lots.
+#[must_use]
+pub fn iceberg_leg_quantity(quantity: i64, legs: i64, lot_size: u32) -> i64 {
+    let lot = i64::from(lot_size.max(1));
+    let per_leg = legs.max(2) * lot;
+    (quantity + per_leg - 1) / per_leg * lot
+}
+
 /// # Errors
 /// Returns an error if an order parameter is not a supported wire value.
 pub fn order_place_params(args: &OrderPlaceArgs) -> kiteconnect::Result<OrderParams> {
@@ -465,7 +474,9 @@ fn read_one_json(inline: Option<&str>, file: Option<&Path>, name: &str) -> Resul
 
 #[cfg(test)]
 mod tests {
-    use super::{csv_records, gtt_payload, parse_key_values, validate_order_place};
+    use super::{
+        csv_records, gtt_payload, iceberg_leg_quantity, parse_key_values, validate_order_place,
+    };
     use crate::cli::{Cli, Commands, ConfirmArgs, GttWriteArgs, OrdersCommands};
     use clap::Parser;
 
@@ -544,6 +555,23 @@ mod tests {
             ),
         ] {
             assert_eq!(place_error(extra).as_deref(), Some(message), "{extra:?}");
+        }
+    }
+
+    #[test]
+    fn iceberg_legs_split_like_kite_web_and_round_up_to_whole_lots() {
+        for (quantity, legs, lot, per_leg) in [
+            (100, 4, 1, 25),
+            (101, 4, 1, 26),
+            (750, 4, 75, 225),
+            (750, 10, 75, 75),
+            (9000, 3, 0, 3000),
+        ] {
+            assert_eq!(
+                iceberg_leg_quantity(quantity, legs, lot),
+                per_leg,
+                "{quantity} over {legs} legs of lot {lot}"
+            );
         }
     }
 

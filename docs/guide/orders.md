@@ -121,7 +121,7 @@ Required flags: `--exchange`, `--tradingsymbol`, `--transaction-type`, `--order-
 - Prices must be finite and non-negative.
 - `--quantity` must be a positive integer.
 - `LIMIT` and `SL` orders need a positive `--price`. `SL` and `SL-M` orders need a positive `--trigger-price`.
-- Iceberg legs (`--iceberg-legs`) must be between `2` and `50`. `--variety iceberg` needs `--iceberg-legs`, and the iceberg flags need `--variety iceberg`.
+- Iceberg legs (`--iceberg-legs`) must be between `2` and `50`. `--variety iceberg` needs `--iceberg-legs`, and the iceberg flags need `--variety iceberg`. Without `--iceberg-quantity`, the CLI sends what Kite web does: the quantity split across the legs, rounded up to whole lots of the instrument.
 - `--validity TTL` needs `--validity-ttl`, and `--validity-ttl` needs `--validity TTL`.
 - `--variety auction` needs `--auction-number`.
 - Order tags (`--tag`) must be `1` to `20` ASCII alphanumeric characters, following the [Kite Connect order parameters specification](https://kite.trade/docs/connect/v3/orders/#regular-order-parameters).

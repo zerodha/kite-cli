@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `kite orders place` refuses orders that are incomplete as written, in dry runs and with `--confirm`: a LIMIT or SL order without a positive `--price`, an SL or SL-M order without a positive `--trigger-price`, `--variety iceberg` without `--iceberg-legs`, `--variety auction` without `--auction-number`, `--validity TTL` without `--validity-ttl`, and iceberg or TTL flags given without their variety or validity. It previously printed a dry run and exited 0.
+- `kite orders place` and `kite orders modify` refuse a zero or negative `--quantity` and a negative `--disclosed-quantity`.
+
 ## [0.2.3] - 2026-11-12
 
 ### Changed

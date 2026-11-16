@@ -2234,6 +2234,8 @@ fn mixed_case_order_flags_send_canonical_values() {
             "limit",
             "--quantity",
             "1",
+            "--price",
+            "1500",
         ],
         true,
     );
@@ -2344,6 +2346,14 @@ fn invalid_order_and_market_arguments_fail_before_a_request() {
         vec!["--iceberg-legs", "1"],
         vec!["--iceberg-legs", "51"],
         vec!["--tag", "has space"],
+        vec!["--quantity", "0"],
+        vec!["--quantity=-1"],
+        vec!["--disclosed-quantity=-1"],
+        vec!["--order-type", "SL"],
+        vec!["--order-type", "SL-M"],
+        vec!["--variety", "iceberg"],
+        vec!["--variety", "auction"],
+        vec!["--validity", "TTL"],
     ] {
         let mut args = PLACE.to_vec();
         if extra[0] == "--price" {
@@ -2361,4 +2371,54 @@ fn invalid_order_and_market_arguments_fail_before_a_request() {
     ] {
         assert_eq!(setup.run(binary, args, true).status.code(), Some(2));
     }
+}
+
+#[test]
+fn order_dry_runs_refuse_flags_that_contradict_each_other() {
+    let setup = Setup::new();
+    let binary = Path::new(env!("CARGO_BIN_EXE_kite"));
+    let writes = setup.server.mock(|when, then| {
+        when.path_prefix("/orders");
+        then.status(500);
+    });
+    for (extra, message) in [
+        (
+            vec!["--price", "0"],
+            "error: --price must be greater than 0 for LIMIT and SL orders\n",
+        ),
+        (
+            vec!["--order-type", "SL-M", "--trigger-price", "0"],
+            "error: --trigger-price must be greater than 0 for SL and SL-M orders\n",
+        ),
+        (
+            vec!["--validity-ttl", "5"],
+            "error: --validity-ttl requires --validity TTL\n",
+        ),
+        (
+            vec!["--iceberg-legs", "3"],
+            "error: --iceberg-legs and --iceberg-quantity require --variety iceberg\n",
+        ),
+    ] {
+        for confirm in [false, true] {
+            let mut args = PLACE.to_vec();
+            for flag in extra.iter().filter(|value| value.starts_with("--")) {
+                if let Some(index) = args.iter().position(|value| value == flag) {
+                    args.drain(index..index + 2);
+                }
+            }
+            args.extend(&extra);
+            if confirm {
+                args.push("--confirm");
+            }
+            let result = setup.run(binary, &args, false);
+            assert_eq!(result.status.code(), Some(1), "{args:?}");
+            assert_eq!(result.stdout, b"", "{args:?}");
+            assert_eq!(
+                String::from_utf8(result.stderr).unwrap(),
+                message,
+                "{args:?}"
+            );
+        }
+    }
+    writes.assert_calls(0);
 }

@@ -2422,3 +2422,56 @@ fn order_dry_runs_refuse_flags_that_contradict_each_other() {
     }
     writes.assert_calls(0);
 }
+
+#[test]
+fn an_iceberg_order_without_a_leg_quantity_splits_like_kite_web() {
+    let setup = Setup::new();
+    let binary = Path::new(env!("CARGO_BIN_EXE_kite"));
+    let cache = setup.cache_path();
+    fs::create_dir_all(cache.parent().unwrap()).unwrap();
+    let records =
+        [("NSE", "INFY", 1), ("NFO", "NIFTY26NOVFUT", 75)].map(|(exchange, symbol, lot)| {
+            json!({
+                "instrument_token":1,"tradingsymbol":symbol,"name":symbol,"exchange":exchange,
+                "tick_size":0.05,"lot_size":lot,"instrument_type":"EQ","segment":exchange
+            })
+        });
+    fs::write(&cache, serde_json::to_vec(&records).unwrap()).unwrap();
+    let writes = setup.server.mock(|when, then| {
+        when.path_prefix("/orders");
+        then.status(500);
+    });
+    let iceberg = |exchange: &str, symbol: &str, quantity: &str, legs: &str| {
+        let mut args: Vec<&str> = PLACE.to_vec();
+        for (flag, value) in [
+            ("--exchange", exchange),
+            ("--tradingsymbol", symbol),
+            ("--quantity", quantity),
+        ] {
+            let index = args.iter().position(|arg| *arg == flag).unwrap();
+            args[index + 1] = value;
+        }
+        args.extend(["--variety", "iceberg", "--iceberg-legs", legs]);
+        setup.run(binary, &args, true)
+    };
+    for (exchange, symbol, quantity, legs, per_leg) in [
+        ("NSE", "INFY", "101", "4", "26"),
+        ("NFO", "NIFTY26NOVFUT", "750", "4", "225"),
+    ] {
+        let result = iceberg(exchange, symbol, quantity, legs);
+        assert_eq!(result.status.code(), Some(0), "{symbol}");
+        let body: Value = serde_json::from_slice(&result.stdout).unwrap();
+        assert_eq!(
+            body["body"]["form"]["iceberg_quantity"], per_leg,
+            "{symbol}: {body}"
+        );
+    }
+    let missing = iceberg("NSE", "NOSUCH", "100", "4");
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(
+        String::from_utf8(missing.stdout)
+            .unwrap()
+            .contains("instrument not found: NSE:NOSUCH; pass --iceberg-quantity")
+    );
+    writes.assert_calls(0);
+}

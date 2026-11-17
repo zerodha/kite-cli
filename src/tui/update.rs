@@ -69,27 +69,32 @@ where
     Fut: Future<Output = anyhow::Result<Version>>,
 {
     let mut cache = path.and_then(read_cache).unwrap_or_default();
-    let cached = Version::parse(&cache.latest)
-        .ok()
-        .filter(|_| now.saturating_sub(cache.checked_at) < CHECK_EVERY_SECS);
+    let known = Version::parse(&cache.latest).ok();
+    let fresh = cache.checked_at <= now && now - cache.checked_at < CHECK_EVERY_SECS;
     let mut dirty = false;
-    let latest = if let Some(latest) = cached {
-        latest
-    } else {
-        let latest = fetch().await.ok()?;
-        cache.checked_at = now;
-        cache.latest = latest.to_string();
-        dirty = true;
-        latest
+    let latest = match known.filter(|_| fresh) {
+        Some(latest) => latest,
+        None => match fetch().await {
+            Ok(latest) => {
+                cache.checked_at = now;
+                cache.latest = latest.to_string();
+                dirty = true;
+                latest
+            }
+            Err(_) => known?,
+        },
     };
     let newer = latest > installed;
-    let announce = newer && cache.notified.as_deref() != Some(cache.latest.as_str());
+    let mut announce = newer && cache.notified.as_deref() != Some(cache.latest.as_str());
     if announce {
         cache.notified = Some(cache.latest.clone());
         dirty = true;
     }
-    if dirty && let Some(path) = path {
-        let _ = crate::util::save_json_atomic(path, &cache);
+    if dirty {
+        let saved = path.is_some_and(|path| crate::util::save_json_atomic(path, &cache).is_ok());
+        // Without a cache every launch would announce again, so stay quiet and
+        // rely on the header item.
+        announce &= saved;
     }
     newer.then_some((latest, announce))
 }
@@ -109,22 +114,16 @@ fn read_cache(path: &Path) -> Option<Cache> {
 }
 
 fn upgrade_hint() -> &'static str {
-    let exe = std::env::current_exe().and_then(std::fs::canonicalize);
-    hint_for(exe.as_deref().unwrap_or(Path::new("")))
-}
-
-fn hint_for(exe: &Path) -> &'static str {
-    let exe = exe.to_string_lossy();
-    if exe.contains("/nix/store/") || exe.contains("/Cellar/") {
-        "upgrade with your package manager"
-    } else {
+    if crate::commands::upgrade::can_self_upgrade() {
         "run kite upgrade"
+    } else {
+        "upgrade with your package manager"
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Cache, hint_for, read_cache, resolve};
+    use super::{Cache, read_cache, resolve};
     use crate::app::release::Version;
     use std::cell::Cell;
     use std::path::{Path, PathBuf};
@@ -135,14 +134,25 @@ mod tests {
         Version::parse(text).unwrap()
     }
 
-    fn temp_cache(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "kite-update-{name}-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        let _ = std::fs::remove_dir_all(&dir);
-        dir.join("update.json")
+    struct TempCache(PathBuf);
+
+    impl TempCache {
+        fn new(name: &str) -> Self {
+            let dir =
+                std::env::temp_dir().join(format!("kite-update-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            Self(dir)
+        }
+
+        fn file(&self) -> PathBuf {
+            self.0.join("update.json")
+        }
+    }
+
+    impl Drop for TempCache {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
 
     async fn run(
@@ -162,7 +172,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_newer_release_is_announced_once_and_then_shown_quietly() {
-        let path = temp_cache("announce");
+        let dir = TempCache::new("announce");
+        let path = dir.file();
         let calls = Cell::new(0);
         assert_eq!(
             run(&path, 1_000, "0.2.0", "0.3.0", &calls).await,
@@ -178,7 +189,8 @@ mod tests {
 
     #[tokio::test]
     async fn the_lookup_repeats_after_a_day_and_announces_a_new_version() {
-        let path = temp_cache("expire");
+        let dir = TempCache::new("expire");
+        let path = dir.file();
         let calls = Cell::new(0);
         run(&path, 1_000, "0.2.0", "0.3.0", &calls).await;
         assert_eq!(
@@ -190,7 +202,8 @@ mod tests {
 
     #[tokio::test]
     async fn an_up_to_date_install_gets_no_notice_but_caches_the_lookup() {
-        let path = temp_cache("current");
+        let dir = TempCache::new("current");
+        let path = dir.file();
         let calls = Cell::new(0);
         assert_eq!(run(&path, 1_000, "0.3.0", "0.3.0", &calls).await, None);
         assert_eq!(run(&path, 2_000, "0.3.0", "0.3.0", &calls).await, None);
@@ -199,7 +212,8 @@ mod tests {
 
     #[tokio::test]
     async fn upgrading_past_the_cached_release_clears_the_notice() {
-        let path = temp_cache("upgraded");
+        let dir = TempCache::new("upgraded");
+        let path = dir.file();
         let calls = Cell::new(0);
         run(&path, 1_000, "0.2.0", "0.3.0", &calls).await;
         assert_eq!(run(&path, 2_000, "0.3.0", "0.3.0", &calls).await, None);
@@ -207,7 +221,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_failed_lookup_is_silent_and_not_cached() {
-        let path = temp_cache("failed");
+        let dir = TempCache::new("failed");
+        let path = dir.file();
         let notice = resolve(Some(&path), 1_000, v("0.2.0"), || async {
             Err(anyhow::anyhow!("offline"))
         })
@@ -218,7 +233,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_corrupt_cache_falls_back_to_a_fresh_lookup() {
-        let path = temp_cache("corrupt");
+        let dir = TempCache::new("corrupt");
+        let path = dir.file();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(&path, "not json").unwrap();
         let calls = Cell::new(0);
@@ -230,19 +246,32 @@ mod tests {
         assert_eq!(cache.latest, "0.3.0");
     }
 
-    #[test]
-    fn package_manager_installs_are_told_to_use_their_package_manager() {
-        assert_eq!(
-            hint_for(Path::new("/nix/store/abc-kite-0.2.0/bin/kite")),
-            "upgrade with your package manager"
-        );
-        assert_eq!(
-            hint_for(Path::new("/opt/homebrew/Cellar/kite/0.2.0/bin/kite")),
-            "upgrade with your package manager"
-        );
-        assert_eq!(
-            hint_for(Path::new("/home/u/.local/bin/kite")),
-            "run kite upgrade"
-        );
+    #[tokio::test]
+    async fn a_cache_dated_in_the_future_is_refreshed() {
+        let dir = TempCache::new("future");
+        let path = dir.file();
+        let calls = Cell::new(0);
+        run(&path, 10 * DAY, "0.2.0", "0.3.0", &calls).await;
+        run(&path, 1_000, "0.2.0", "0.3.0", &calls).await;
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[tokio::test]
+    async fn an_offline_launch_keeps_showing_a_known_newer_release() {
+        let dir = TempCache::new("offline");
+        let path = dir.file();
+        let calls = Cell::new(0);
+        run(&path, 1_000, "0.2.0", "0.3.0", &calls).await;
+        let notice = resolve(Some(&path), 1_000 + DAY, v("0.2.0"), || async {
+            Err(anyhow::anyhow!("offline"))
+        })
+        .await;
+        assert_eq!(notice, Some((v("0.3.0"), false)));
+    }
+
+    #[tokio::test]
+    async fn without_a_cache_the_release_is_shown_but_never_announced() {
+        let notice = resolve(None, 1_000, v("0.2.0"), || async { Ok(v("0.3.0")) }).await;
+        assert_eq!(notice, Some((v("0.3.0"), false)));
     }
 }

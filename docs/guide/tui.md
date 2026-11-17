@@ -657,9 +657,9 @@ You can run several TUI instances at once in separate terminals or tmux panes. T
 
 At startup the TUI checks GitHub for a newer `kite` release in the background. It never delays startup or sign-in, and it never upgrades on its own.
 
-- **What you see:** When a newer release exists, the header status strip shows `update vX.Y.Z` in the warning colour, and a toast names the command to run. The toast appears once per release; later sessions show only the header item. On a narrow terminal the header item is the first status field to drop.
-- **How to upgrade:** Quit the TUI and run `kite upgrade`. When the binary runs from a Nix store or Homebrew Cellar path, the toast says to upgrade with your package manager instead.
-- **How often:** At most once a day. The result is cached in `~/.cache/kite/update.json`, so several open windows share one lookup. A failed lookup shows nothing and is retried at the next launch.
+- **What you see:** When a newer release exists, the header status strip shows `update vX.Y.Z` in the warning colour, and a toast names the command to run. The toast appears once per release; later sessions show only the header item. The header item has the lowest priority in the status strip, so a narrow terminal hides it before the other fields.
+- **How to upgrade:** Quit the TUI and run `kite upgrade`. When `kite upgrade` would refuse to replace the binary (a Nix store path, a symlink placed by a package manager such as Homebrew, or a directory you cannot write to), the toast says to upgrade with your package manager instead.
+- **How often:** At most once a day. The result is cached in `~/.cache/kite/update.json`, so windows opened later that day reuse it; windows started at the same moment may each look it up. When a lookup fails, the TUI keeps showing a newer release it already knows about and retries at the next launch. If the cache cannot be written, the header item still appears but the toast does not, so it cannot repeat on every launch.
 - **What it sends:** One unauthenticated request to `github.com/zerodha/kite-cli/releases/latest`, the same lookup `kite upgrade --check` makes. No user ID or session data is sent.
 - **Turning it off:** Set `"update_check": false` in `tui.json` or `KITE_NO_UPDATE_CHECK=1` in the environment. `kite upgrade --check` and `kite doctor` still check on demand.
 

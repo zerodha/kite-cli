@@ -69,6 +69,12 @@ pub async fn upgrade(rt: &Runtime, args: &UpgradeArgs) -> Result<Output> {
     ))
 }
 
+/// Whether `kite upgrade` may replace the running binary, as opposed to
+/// refusing and pointing at a package manager.
+pub(crate) fn can_self_upgrade() -> bool {
+    std::env::current_exe().is_ok_and(|exe| install_dir(&exe, invoked_path().as_deref()).is_ok())
+}
+
 /// The `kite` path the shell ran, which may be a symlink to `current_exe`.
 fn invoked_path() -> Option<PathBuf> {
     let arg0 = PathBuf::from(std::env::args_os().next()?);

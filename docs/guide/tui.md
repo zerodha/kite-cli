@@ -642,7 +642,13 @@ The following actions open a confirmation modal showing the exact parameters or 
 
 Every file save writes to a temporary file in the same directory and atomically renames it into place, ensuring an interrupted write never leaves a corrupted or truncated file. `notes.json` is only rewritten when note contents actually change. Symlinked configuration, settings, and notes files are respected (writes replace the resolved target file, while broken symlinks report an error).
 
-Running two TUI instances concurrently in separate terminals does not synchronise local state: the last instance to save wins, and concurrent note edits do not merge. A `kite tui --token` session never writes to `notes.json`.
+### Running more than one window
+
+You can run several TUI instances at once in separate terminals or tmux panes. They share one signed-in session but nothing else:
+
+- **Local state:** Instances do not synchronise `tui.json` or `notes.json`. The last instance to save wins, and concurrent note edits do not merge. A `kite tui --token` session never writes to `notes.json`.
+- **Live data:** Each instance opens its own WebSocket ticker connection. Kite caps concurrent ticker connections (see [rate limits](troubleshooting.md)), so an instance beyond that cap may get no live ticks. Press `Ctrl-L` in that window to see the ticker error.
+- **Polling:** Each instance polls orders, positions, holdings, funds, GTTs and alerts on its own timer, and loads its own chart candles. With default intervals this is far below Kite's REST limits, but opening charts in several windows at once can briefly hit the historical-candle limit (`HTTP 429`). Raise `poll_secs` in `tui.json` if you run many instances.
 
 ---
 

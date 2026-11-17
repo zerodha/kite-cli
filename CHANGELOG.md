@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-17
+
 ### Added
 
 - The TUI tells you when a newer `kite` release exists. The header shows `update vX.Y.Z` and a toast names the command to run, once per release. It checks GitHub in the background at most once a day and never delays startup. Turn it off with `"update_check": false` in `tui.json` or `KITE_NO_UPDATE_CHECK=1`.

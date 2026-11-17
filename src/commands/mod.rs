@@ -10,7 +10,7 @@ mod orders;
 mod portfolio;
 mod request;
 mod stream;
-mod upgrade;
+pub(crate) mod upgrade;
 mod user;
 
 use crate::app::output::Output;

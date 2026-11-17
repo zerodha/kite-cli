@@ -1,4 +1,5 @@
 use super::{HitAction, bar_style};
+use crate::app::release::Version;
 use crate::tui::app::App;
 use crate::tui::event::WsState;
 use crate::tui::format;
@@ -134,6 +135,7 @@ fn status_line(
     ws_state: WsState,
     fatal_reason: Option<&str>,
     margin: Option<f64>,
+    update: Option<Version>,
     now: u64,
     uptime_secs: u64,
     width: u16,
@@ -183,6 +185,12 @@ fn status_line(
         ));
     }
     fields.push((format::uptime(uptime_secs), format::dim()));
+    if let Some(latest) = update {
+        fields.push((
+            format!("update {}", latest.tag()),
+            Style::default().fg(format::warning()),
+        ));
+    }
 
     let sep_width = u16::try_from(format::display_width(STATUS_SEP)).unwrap_or(u16::MAX);
     let mut spans = vec![Span::styled(ws_label, ws_style)];
@@ -262,6 +270,7 @@ pub(super) fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
             app.ws_state,
             app.ws_fatal.as_deref(),
             app.margin_available,
+            app.update_available,
             now,
             app.started_at.elapsed().as_secs(),
             status_area.width.saturating_sub(1),
@@ -275,6 +284,7 @@ pub(super) fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
 #[cfg(test)]
 mod tests {
     use super::{bar_style, draw_header, pieces_width, status_line, strip_pieces};
+    use crate::app::release::Version;
     use crate::tui::app::App;
     use crate::tui::event::WsState;
     use crate::tui::format;
@@ -301,6 +311,7 @@ mod tests {
             ws,
             None,
             margin,
+            None,
             FIXTURE_NOW,
             FIXTURE_UPTIME,
             width,
@@ -349,6 +360,7 @@ mod tests {
             WsState::Connected,
             None,
             None,
+            None,
             FIXTURE_NOW,
             99 * 3600 + 59 * 60,
             64,
@@ -358,11 +370,49 @@ mod tests {
             WsState::Connected,
             None,
             None,
+            None,
             FIXTURE_NOW,
             99 * 3600 + 59 * 60,
             6 + 1 + 7 + 11 + 11,
         ));
         assert_eq!(tight, "● live | open | 10:30:00 ");
+    }
+
+    #[test]
+    fn a_newer_release_is_the_first_field_to_drop() {
+        let _guard = settings::theme_guard(Theme::DEFAULT);
+        let update = Version::parse("9.0.0").ok();
+        let wide = status_line(
+            WsState::Connected,
+            None,
+            None,
+            update,
+            FIXTURE_NOW,
+            FIXTURE_UPTIME,
+            64,
+        );
+        assert_eq!(
+            text(&wide),
+            "● live | open | 10:30:00 | up 1m 20s | update v9.0.0 "
+        );
+        let badge = wide
+            .spans
+            .iter()
+            .find(|span| span.content.as_ref() == "update v9.0.0");
+        assert_eq!(
+            badge.and_then(|span| span.style.fg),
+            Some(format::warning())
+        );
+        let narrow = status_line(
+            WsState::Connected,
+            None,
+            None,
+            update,
+            FIXTURE_NOW,
+            FIXTURE_UPTIME,
+            40,
+        );
+        assert_eq!(text(&narrow), "● live | open | 10:30:00 | up 1m 20s ");
     }
 
     #[test]
@@ -403,6 +453,7 @@ mod tests {
                 state,
                 expired.then_some(crate::tui::app::SESSION_EXPIRED),
                 None,
+                None,
                 FIXTURE_NOW,
                 FIXTURE_UPTIME,
                 40,
@@ -418,6 +469,7 @@ mod tests {
         let line = status_line(
             WsState::Closed,
             Some("ticker subscription limit exceeded"),
+            None,
             None,
             FIXTURE_NOW,
             FIXTURE_UPTIME,
@@ -449,6 +501,7 @@ mod tests {
             WsState::Connected,
             None,
             Some(1.0),
+            None,
             FIXTURE_NOW,
             FIXTURE_UPTIME,
             64,
@@ -488,6 +541,7 @@ mod tests {
                         app.ws_state,
                         app.ws_fatal.as_deref(),
                         app.margin_available,
+                        app.update_available,
                         FIXTURE_NOW,
                         FIXTURE_UPTIME,
                         status_area.width - 1,

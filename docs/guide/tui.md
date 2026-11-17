@@ -65,6 +65,7 @@ Bracketed paste inserts text into the focused field. Single-line fields accept o
 - **Header:** Displays one tab per workspace followed by a status strip:
   - **WebSocket state:** `● live`, `◌ connecting`, `◌ reconnecting`, `○ offline`, or `○ auth expired`.
   - **Session indicators:** Session uptime, IST clock, market phase (`pre-open`, `open`, or closed), and available equity margin.
+  - **Update notice:** `update vX.Y.Z` when a newer `kite` release exists (see [Update notice](#update-notice)).
   - **Responsive truncation:** When the terminal width is narrow, the status strip drops the clock and market phase first, then available funds, and then uptime. Workspace tabs drop their number keys first, then the `kite` mark, without truncating workspace names—all tabs fit at 80 columns. Below 80 columns, the header keeps the active tab and as many adjacent tabs as fit, displaying `‹` or `›` on sides with hidden tabs.
 - **Main area:** Displays the panes of the active workspace.
 - **Message and key-hint bar:** Shows transient status messages (order acknowledgements, errors) colour-coded by severity. When no message is active, it displays contextual key hints grouped by function and separated by a dim `│`:
@@ -539,6 +540,7 @@ Interactive preferences changed inside the TUI are written back to `tui.json` im
 | `workspaces` | Per-user map tracking the active workspace, focused pane, and zoomed state. Managed automatically by the TUI. |
 | `selected_watch` | Per-user map tracking the last open watchlist ID. Managed automatically by the TUI. |
 | `poll_secs` | Background refresh intervals in seconds (clamped to `2`–`600`) for `orders`, `positions`, `holdings`, `margins`, `gtt`, and `alerts`. Mutual fund holdings share the `holdings` interval. |
+| `update_check` | Boolean (`true` by default when omitted). Set `false` to stop the TUI from checking GitHub for a newer release. See [Update notice](#update-notice). |
 
 - **`splits` keys:** `chart_right`, `chart_bottom`, `overview_main`, `overview_books`, `trading_root`, `trading_right`, `trading_bottom`, `portfolio_root`, `portfolio_left`, `portfolio_right`, `derivatives_root`, `orders_root`, `orders_right` (legacy `watch_detail` is ignored).
 - **`workspaces` schema migration:** Written with a `version` field. The TUI transparently migrates `version: 1` state (from before multi-pane workspaces) to the corresponding modern workspaces and preserves unknown future versions untouched.
@@ -639,10 +641,27 @@ The following actions open a confirmation modal showing the exact parameters or 
 | `~/.config/kite/notes.json` | Local trading notes and scratchpad entries |
 | `~/.config/kite/config.json` | Saved session credentials written by the sign-in screen (see [Configuration](configuration.md)) |
 | `~/.cache/kite/instruments.json` | Cached exchange instrument master |
+| `~/.cache/kite/update.json` | Latest release seen and when it was checked (see [Update notice](#update-notice)) |
 
 Every file save writes to a temporary file in the same directory and atomically renames it into place, ensuring an interrupted write never leaves a corrupted or truncated file. `notes.json` is only rewritten when note contents actually change. Symlinked configuration, settings, and notes files are respected (writes replace the resolved target file, while broken symlinks report an error).
 
-Running two TUI instances concurrently in separate terminals does not synchronise local state: the last instance to save wins, and concurrent note edits do not merge. A `kite tui --token` session never writes to `notes.json`.
+### Running more than one window
+
+You can run several TUI instances at once in separate terminals or tmux panes. They share one signed-in session but nothing else:
+
+- **Local state:** Instances do not synchronise `tui.json` or `notes.json`. The last instance to save wins, and concurrent note edits do not merge. A `kite tui --token` session never writes to `notes.json`.
+- **Live data:** Each instance opens its own WebSocket ticker connection. Kite caps concurrent ticker connections (see [rate limits](troubleshooting.md)), so an instance beyond that cap may get no live ticks. Press `Ctrl-L` in that window to see the ticker error.
+- **Polling:** Each instance polls orders, positions, holdings, funds, GTTs and alerts on its own timer, and loads its own chart candles. With default intervals this is far below Kite's REST limits, but opening charts in several windows at once can briefly hit the historical-candle limit (`HTTP 429`). Raise `poll_secs` in `tui.json` if you run many instances.
+
+### Update notice
+
+At startup the TUI checks GitHub for a newer `kite` release in the background. It never delays startup or sign-in, and it never upgrades on its own.
+
+- **What you see:** When a newer release exists, the header status strip shows `update vX.Y.Z` in the warning colour, and a toast names the command to run. The toast appears once per release; later sessions show only the header item. The header item has the lowest priority in the status strip, so a narrow terminal hides it before the other fields.
+- **How to upgrade:** Quit the TUI and run `kite upgrade`. When `kite upgrade` would refuse to replace the binary (a Nix store path, a symlink placed by a package manager such as Homebrew, or a directory you cannot write to), the toast says to upgrade with your package manager instead.
+- **How often:** At most once a day. The result is cached in `~/.cache/kite/update.json`, so windows opened later that day reuse it; windows started at the same moment may each look it up. When a lookup fails, the TUI keeps showing a newer release it already knows about and retries at the next launch. If the cache cannot be written, the header item still appears but the toast does not, so it cannot repeat on every launch.
+- **What it sends:** One unauthenticated request to `github.com/zerodha/kite-cli/releases/latest`, the same lookup `kite upgrade --check` makes. No user ID or session data is sent.
+- **Turning it off:** Set `"update_check": false` in `tui.json` or `KITE_NO_UPDATE_CHECK=1` in the environment. `kite upgrade --check` and `kite doctor` still check on demand.
 
 ---
 

@@ -94,6 +94,7 @@ impl App {
             orders: None,
             gtts: None,
             margin_available: None,
+            update_available: None,
             funds: None,
             profile: None,
             instruments: None,

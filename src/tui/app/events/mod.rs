@@ -112,6 +112,15 @@ impl App {
             DataEvent::Profile(Ok(profile)) => {
                 self.profile = Some(*profile);
             }
+            DataEvent::UpdateAvailable(notice) => {
+                if notice.announce {
+                    self.toast(
+                        ToastLevel::Info,
+                        format!("kite {} is available: {}", notice.latest.tag(), notice.hint),
+                    );
+                }
+                self.update_available = Some(notice.latest);
+            }
             DataEvent::Gtts(Ok(gtts)) => {
                 self.gtts = Some(gtts);
                 self.gtts_gen += 1;
@@ -328,6 +337,34 @@ mod tests {
     use kiteconnect::OrderType;
     use kiteconnect::ticker::TickerEvent;
     use std::sync::Arc;
+
+    #[test]
+    fn a_newer_release_toasts_only_when_announced_and_always_marks_the_header() {
+        use crate::app::release::Version;
+        use crate::tui::update::Notice;
+        let latest = Version::parse("9.0.0").unwrap();
+        for announce in [true, false] {
+            let mut app = test_app();
+            let before = app.toasts().len();
+            app.on_event(AppEvent::Data(DataEvent::UpdateAvailable(Notice {
+                latest,
+                announce,
+                hint: "run kite upgrade",
+            })));
+            assert_eq!(app.update_available, Some(latest));
+            let toasts: Vec<_> = app
+                .toasts()
+                .iter()
+                .skip(before)
+                .map(|t| t.text.as_str())
+                .collect();
+            if announce {
+                assert_eq!(toasts, ["kite v9.0.0 is available: run kite upgrade"]);
+            } else {
+                assert!(toasts.is_empty(), "{toasts:?}");
+            }
+        }
+    }
 
     #[test]
     fn a_holdings_load_error_stays_until_holdings_load() {

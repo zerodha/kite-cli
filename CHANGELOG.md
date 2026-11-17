@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The TUI tells you when a newer `kite` release exists. The header shows `update vX.Y.Z` and a toast names the command to run, once per release. It checks GitHub in the background at most once a day and never delays startup. Turn it off with `"update_check": false` in `tui.json` or `KITE_NO_UPDATE_CHECK=1`.
+
 ### Fixed
 
 - `kite orders place` refuses orders that are incomplete as written, in dry runs and with `--confirm`: a LIMIT or SL order without a positive `--price`, an SL or SL-M order without a positive `--trigger-price`, `--variety iceberg` without `--iceberg-legs`, `--variety auction` without `--auction-number`, `--validity TTL` without `--validity-ttl`, and iceberg or TTL flags given without their variety or validity. It previously printed a dry run and exited 0.

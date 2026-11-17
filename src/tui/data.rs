@@ -203,6 +203,7 @@ pub enum DataEvent {
         interval: ChartInterval,
         result: Result<Vec<Candle>, String>,
     },
+    UpdateAvailable(crate::tui::update::Notice),
 }
 
 pub(crate) fn api_err(err: impl Into<anyhow::Error>) -> String {

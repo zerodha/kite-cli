@@ -439,7 +439,7 @@ Options:
           Number of iceberg legs, between 2 and 50
 
       --iceberg-quantity <ICEBERG_QUANTITY>
-          Quantity per iceberg leg
+          Quantity per iceberg leg. Defaults to Kite web's split: the quantity over the legs, rounded up to whole lots
 
       --auction-number <AUCTION_NUMBER>
           Auction number for auction variety orders

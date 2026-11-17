@@ -71,6 +71,7 @@ path                    /home/user/.config/kite/config.json
 | `NO_COLOR` | Any value (including empty) disables ANSI colour in CLI output |
 | `TERM` | `dumb` disables ANSI colour in CLI output |
 | `COLUMNS` | Override detected terminal width for CLI table formatting |
+| `KITE_NO_UPDATE_CHECK` | Any value other than empty or `0` stops the TUI's background release check (see [Update notice](tui.md#update-notice)) |
 | `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` | Override default config and cache base directories on Linux |
 
 Empty or whitespace-only `KITE_*` environment variables are ignored.

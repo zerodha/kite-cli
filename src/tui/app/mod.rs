@@ -257,6 +257,7 @@ pub struct App {
     pub orders: Option<Vec<Order>>,
     pub gtts: Option<Vec<Gtt>>,
     pub margin_available: Option<f64>,
+    pub update_available: Option<crate::app::release::Version>,
 
     pub funds: Option<Funds>,
 

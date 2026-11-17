@@ -541,6 +541,7 @@ pub struct Settings {
     #[serde(default, deserialize_with = "split_entries")]
     pub splits: HashMap<String, f32>,
     pub workspaces: Option<serde_json::Value>,
+    pub update_check: Option<bool>,
 }
 
 impl Settings {

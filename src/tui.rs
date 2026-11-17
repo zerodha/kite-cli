@@ -20,6 +20,7 @@ mod subscriptions;
 mod ticket;
 mod ticks;
 mod ui;
+mod update;
 mod workspace;
 
 use crate::app::runtime::Runtime;
@@ -206,6 +207,9 @@ fn spawn_session_tasks(
         events_tx.clone(),
     ));
     tasks.push(data::spawn_refresh_profile(client, events_tx.clone()));
+    if settings.update_check.unwrap_or(true) && !update::disabled_by_env() {
+        tasks.push(update::spawn_check(events_tx.clone()));
+    }
     tasks.push(data::spawn_load_instruments(app.uuid.clone(), events_tx));
 
     Ok(tasks)

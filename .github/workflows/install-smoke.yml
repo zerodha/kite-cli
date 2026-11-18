@@ -7,7 +7,7 @@ on:
         description: Expected installed release version
         required: true
         type: string
-        default: 0.2.4
+        default: 0.2.5
 
 permissions:
   contents: read

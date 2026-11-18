@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The TUI Movers panel says the market is closed and that movers appear after 9:15 when the market is not open. Before the open it showed a red "Market movers unavailable: bad screener payload" error and an error toast.
+
 ## [0.2.4] - 2026-11-17
 
 ### Added

@@ -28,7 +28,11 @@ pub(in crate::tui::ui) fn draw_movers(frame: &mut Frame, area: Rect, app: &App, 
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    if let Some(state) = movers_state(app.movers.as_ref(), app.movers_failed.as_deref()) {
+    if let Some(state) = movers_state(
+        app.movers.as_ref(),
+        app.movers_failed.as_deref(),
+        market_open(),
+    ) {
         let (tone, headline, detail, hint) = match &state {
             MoversState::Loading => (
                 ui::MessageTone::Normal,
@@ -41,6 +45,12 @@ pub(in crate::tui::ui) fn draw_movers(frame: &mut Frame, area: Rect, app: &App, 
                 "Market movers unavailable",
                 Some(*reason),
                 Some("r Retry"),
+            ),
+            MoversState::Closed => (
+                ui::MessageTone::Normal,
+                "Market is closed",
+                Some("Movers appear after the market opens at 9:15"),
+                None,
             ),
             MoversState::Empty => (
                 ui::MessageTone::Normal,
@@ -69,21 +79,37 @@ pub(in crate::tui::ui) fn draw_movers(frame: &mut Frame, area: Rect, app: &App, 
     frame.render_widget(Paragraph::new(lines), inner);
 }
 
+fn market_open() -> bool {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    format::market_phase(now) == "open"
+}
+
 #[derive(Debug)]
 enum MoversState<'a> {
     Loading,
     Failed(&'a str),
     Empty,
+    Closed,
 }
 
-fn movers_state<'a>(movers: Option<&Movers>, failed: Option<&'a str>) -> Option<MoversState<'a>> {
+fn movers_state<'a>(
+    movers: Option<&Movers>,
+    failed: Option<&'a str>,
+    market_open: bool,
+) -> Option<MoversState<'a>> {
     match movers {
         None => Some(match failed {
             Some(reason) => MoversState::Failed(reason),
             None => MoversState::Loading,
         }),
         Some(movers) if movers.gainers.is_empty() && movers.losers.is_empty() => {
-            Some(MoversState::Empty)
+            Some(if market_open {
+                MoversState::Empty
+            } else {
+                MoversState::Closed
+            })
         }
         Some(_) => None,
     }
@@ -179,10 +205,10 @@ mod tests {
     #[test]
     fn movers_state_distinguishes_loading_failed_and_empty() {
         assert!(
-            matches!(movers_state(None, None), Some(MoversState::Loading)),
+            matches!(movers_state(None, None, true), Some(MoversState::Loading)),
             "an unfetched panel must say it is loading"
         );
-        let failed = movers_state(None, Some("offline, no network route to Kite"));
+        let failed = movers_state(None, Some("offline, no network route to Kite"), true);
         match failed {
             Some(MoversState::Failed(reason)) => {
                 assert_eq!(reason, "offline, no network route to Kite");
@@ -195,7 +221,7 @@ mod tests {
             losers: Vec::new(),
         };
         assert!(matches!(
-            movers_state(Some(&empty), None),
+            movers_state(Some(&empty), None, true),
             Some(MoversState::Empty)
         ));
 
@@ -203,13 +229,13 @@ mod tests {
             gainers: vec![screener_row("LGEINDIA", 1621.4, 9.59, 241_000.0)],
             losers: Vec::new(),
         };
-        assert!(movers_state(Some(&gainers_only), None).is_none());
-        assert!(movers_state(Some(&gainers_only), Some("boom")).is_none());
+        assert!(movers_state(Some(&gainers_only), None, true).is_none());
+        assert!(movers_state(Some(&gainers_only), Some("boom"), true).is_none());
         let losers_only = Movers {
             gainers: Vec::new(),
             losers: vec![screener_row("ZEEL", 100.0, -5.72, 1_000.0)],
         };
-        assert!(movers_state(Some(&losers_only), None).is_none());
+        assert!(movers_state(Some(&losers_only), None, true).is_none());
     }
 
     #[test]
@@ -470,6 +496,22 @@ mod tests {
     }
 
     #[test]
+    fn an_empty_market_outside_hours_reads_as_closed_not_broken() {
+        let empty = Movers {
+            gainers: Vec::new(),
+            losers: Vec::new(),
+        };
+        assert!(matches!(
+            movers_state(Some(&empty), None, false),
+            Some(MoversState::Closed)
+        ));
+        assert!(matches!(
+            movers_state(Some(&empty), None, true),
+            Some(MoversState::Empty)
+        ));
+    }
+
+    #[test]
     fn an_empty_movers_universe_is_not_reported_as_loading() {
         let mut app = test_app();
         app.movers = Some(Movers {
@@ -478,7 +520,8 @@ mod tests {
         });
         let rows = movers_panel_rows(&app);
         assert!(
-            rows[2].contains("No movers in this universe yet"),
+            rows[2].contains("No movers in this universe yet")
+                || rows[2].contains("Market is closed"),
             "{:?}",
             rows[2]
         );

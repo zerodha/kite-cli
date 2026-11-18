@@ -1,10 +1,12 @@
 use super::{DataEvent, api_err, send};
 use crate::app_api::screener::{self as screener_api, MoverPreset, ScreenerPreset, ScreenerQuery};
 use crate::tui::event::AppEvent;
+use crate::tui::format;
 use kiteconnect::KiteConnect;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -119,14 +121,28 @@ async fn fetch_screener_rows(
     let value = screener_api::instruments(client, &query)
         .await
         .map_err(api_err)?;
-    screener_rows(&value)
+    screener_rows(&value, market_open(now_unix()))
 }
 
-fn screener_rows(value: &Value) -> Result<Vec<ScreenerRow>, String> {
-    let results = value
-        .get("results")
-        .and_then(Value::as_array)
-        .ok_or("bad screener payload: no results array")?;
+fn now_unix() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
+fn market_open(now: u64) -> bool {
+    format::market_phase(now) == "open"
+}
+
+/// Outside market hours the screener answers without a `results` array, so
+/// that reads as an empty market. During the session it is still a bad payload.
+fn screener_rows(value: &Value, market_open: bool) -> Result<Vec<ScreenerRow>, String> {
+    let Some(results) = value.get("results").and_then(Value::as_array) else {
+        if market_open {
+            return Err("bad screener payload: no results array".to_string());
+        }
+        return Ok(Vec::new());
+    };
     results
         .iter()
         .take(MOVERS_ROWS)
@@ -213,19 +229,22 @@ mod tests {
 
     #[test]
     fn screener_rows_errors_on_a_broken_payload() {
-        let ok = screener_rows(&serde_json::json!({
-            "results": [row("INFY")],
-            "page": 1,
-            "per_page": 50,
-            "total": 1,
-            "total_pages": 1
-        }))
+        let ok = screener_rows(
+            &serde_json::json!({
+                "results": [row("INFY")],
+                "page": 1,
+                "per_page": 50,
+                "total": 1,
+                "total_pages": 1
+            }),
+            true,
+        )
         .expect("a well-formed payload parses");
         assert_eq!(ok.len(), 1);
         assert_eq!(ok[0].tradingsymbol, "INFY");
 
         assert!(
-            screener_rows(&serde_json::json!({"results": []}))
+            screener_rows(&serde_json::json!({"results": []}), true)
                 .expect("an empty result set is not an error")
                 .is_empty()
         );
@@ -236,16 +255,37 @@ mod tests {
             serde_json::json!({"results": {"unexpected": "object"}}),
             serde_json::json!({"results": "nope"}),
         ] {
-            let err = screener_rows(&broken)
+            let err = screener_rows(&broken, true)
                 .expect_err(&format!("{broken} must not read as an empty market"));
             assert!(err.starts_with("bad screener payload"), "{err}");
         }
     }
 
     #[test]
+    fn a_missing_results_array_outside_market_hours_is_an_empty_market() {
+        for closed in [serde_json::json!({}), serde_json::json!({"results": null})] {
+            assert!(
+                screener_rows(&closed, false)
+                    .expect("the screener has no movers before the open")
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn movers_count_as_live_only_during_the_session() {
+        // 2026-07-07 is a Tuesday; times are IST.
+        let ist = |h: u64, m: u64| 1_783_382_400 - 19_800 + h * 3600 + m * 60;
+        assert!(!super::market_open(ist(8, 25)));
+        assert!(!super::market_open(ist(9, 5)));
+        assert!(super::market_open(ist(10, 0)));
+        assert!(!super::market_open(ist(15, 30)));
+    }
+
+    #[test]
     fn screener_rows_truncate_to_the_rows_the_panel_draws() {
         let rows: Vec<serde_json::Value> = (0..50).map(|i| row(&format!("SYM{i}"))).collect();
-        let parsed = screener_rows(&serde_json::json!({"results": rows})).expect("parses");
+        let parsed = screener_rows(&serde_json::json!({"results": rows}), true).expect("parses");
         assert_eq!(parsed.len(), MOVERS_ROWS);
     }
 
@@ -335,12 +375,13 @@ mod tests {
         let mut rows: Vec<serde_json::Value> =
             (0..MOVERS_ROWS).map(|i| row(&format!("S{i}"))).collect();
         rows.push(json!({ "tradingsymbol": "NOPRICE", "change_percent": 1.0, "volume": 1 }));
-        let parsed = screener_rows(&json!({ "results": rows.clone() })).expect("drawn rows parse");
+        let parsed =
+            screener_rows(&json!({ "results": rows.clone() }), true).expect("drawn rows parse");
         assert_eq!(parsed.len(), MOVERS_ROWS);
         assert_eq!(parsed[4].tradingsymbol, "S4");
 
         rows[1]["last_price"] = json!(null);
-        let err = screener_rows(&json!({ "results": rows })).expect_err("drawn row 1 is bad");
+        let err = screener_rows(&json!({ "results": rows }), true).expect_err("drawn row 1 is bad");
         assert!(err.starts_with("bad screener payload: row 1:"), "{err}");
     }
 

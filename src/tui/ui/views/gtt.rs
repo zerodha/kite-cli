@@ -67,6 +67,25 @@ pub(super) const GTT_LABELS: [(&str, bool); 8] = [
 
 const GTT_TRIGGER: usize = 3;
 const GTT_LTP: usize = 4;
+const GTT_ORDER: usize = 6;
+
+fn order_cell(gtt: &Gtt) -> String {
+    if gtt.orders.is_empty() {
+        return ".".to_string();
+    }
+    gtt.orders
+        .iter()
+        .map(|order| {
+            format!(
+                "{} {} @ {}",
+                order.transaction_type,
+                order.quantity,
+                format::price(order.price)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" / ")
+}
 
 pub fn draw_gtts_pane(
     frame: &mut Frame,
@@ -92,6 +111,12 @@ pub fn draw_gtts_pane(
         gtts.iter()
             .map(|gtt| format::price(gtt.condition.last_price).len()),
     );
+    columns::floor_to_cells(
+        &mut cols,
+        GTT_ORDER,
+        gtts.iter()
+            .map(|gtt| format::display_width(&order_cell(gtt))),
+    );
     let fit = columns::fit_columns(table_budget(area.width), 1, &cols);
     let layout = columns::spread(
         &fit,
@@ -112,19 +137,6 @@ pub fn draw_gtts_pane(
         .iter()
         .map(|&i| {
             let gtt = &gtts[i];
-            let order = || {
-                gtt.orders.first().map_or_else(
-                    || ".".to_string(),
-                    |order| {
-                        format!(
-                            "{} {} @ {}",
-                            order.transaction_type,
-                            order.quantity,
-                            format::price(order.price)
-                        )
-                    },
-                )
-            };
             let side_style = match gtt.orders.first().map(|o| o.transaction_type.as_str()) {
                 Some("BUY") => Style::default().fg(format::up()),
                 Some("SELL") => Style::default().fg(format::down()),
@@ -149,7 +161,7 @@ pub fn draw_gtts_pane(
                     &|| right(gtt_triggers(gtt)),
                     &|| right(format::price(gtt.condition.last_price)),
                     &|| Cell::from(Span::styled(gtt.status.clone(), status_style)),
-                    &|| Cell::from(Span::styled(order(), side_style)),
+                    &|| Cell::from(Span::styled(order_cell(gtt), side_style)),
                     &|| Cell::from(Span::styled(created(), format::dim())),
                 ],
             )
@@ -328,6 +340,26 @@ mod gtt_tests {
     }
 
     #[test]
+    fn the_order_cell_names_every_leg_with_its_own_quantity() {
+        let leg = |quantity: f64, price: f64| {
+            let mut row = order();
+            row.quantity = quantity;
+            row.price = price;
+            row
+        };
+        let oco = gtt(
+            "two-leg",
+            vec![leg(100.0, 995.0), leg(50.0, 1155.0)],
+            vec![1000.0, 1150.0],
+        );
+        assert_eq!(
+            super::order_cell(&oco),
+            "SELL 100 @ 995.00 / SELL 50 @ 1,155.00"
+        );
+        assert_eq!(super::order_cell(&gtt("single", vec![], vec![700.0])), ".");
+    }
+
+    #[test]
     fn unknown_passes_through() {
         assert_eq!(
             gtt_type_label(&gtt("bracket", vec![order()], vec![700.0])),
@@ -336,7 +368,7 @@ mod gtt_tests {
     }
 
     #[test]
-    fn six_digit_triggers_and_ltp_are_drawn_whole() {
+    fn six_digit_triggers_ltp_and_both_legs_are_drawn_whole() {
         let client = kiteconnect::KiteConnect::builder("test-key")
             .access_token(kiteconnect::AccessToken::new("tok").unwrap())
             .build()
@@ -350,7 +382,10 @@ mod gtt_tests {
             false,
             &crate::tui::settings::Settings::default(),
         );
-        let mut row = gtt("two-leg", vec![order()], vec![113_436.0, 138_644.0]);
+        let mut target = order();
+        target.quantity = 2.0;
+        target.price = 138_650.0;
+        let mut row = gtt("two-leg", vec![order(), target], vec![113_436.0, 138_644.0]);
         row.condition.last_price = 126_040.0;
         app.gtts = Some(vec![row]);
         let width = 160;
@@ -363,5 +398,9 @@ mod gtt_tests {
         let row: String = (0..width).map(|x| buffer[(x, 2)].symbol()).collect();
         assert!(row.contains("1,13,436.00 / 1,38,644.00"), "{row:?}");
         assert!(row.contains("1,26,040.00"), "{row:?}");
+        assert!(
+            row.contains("SELL 1 @ 1,490.00 / SELL 2 @ 1,38,650.00"),
+            "{row:?}"
+        );
     }
 }

@@ -200,6 +200,7 @@ pub enum TicketField {
     Legs,
     Trailing,
     TrailPoints,
+    TargetQuantity,
     TargetPrice,
     TargetTrigger,
 }
@@ -226,7 +227,10 @@ impl TicketField {
             Self::OrderType => matches!(other, Self::Price | Self::Trigger | Self::Protection),
             Self::Validity => other == Self::TtlMinutes,
             Self::Variety => matches!(other, Self::Legs | Self::Product | Self::Trigger),
-            Self::GttType => matches!(other, Self::TargetPrice | Self::TargetTrigger),
+            Self::GttType => matches!(
+                other,
+                Self::TargetQuantity | Self::TargetPrice | Self::TargetTrigger
+            ),
             Self::Side => matches!(other, Self::Trailing | Self::TrailPoints),
             Self::Trailing => other == Self::TrailPoints,
             _ => false,
@@ -260,6 +264,7 @@ pub struct TicketState {
     pub trailing_points: String,
     pub trigger2: String,
     pub price2: String,
+    pub qty2: String,
     pub order_type: OrderType,
     pub product: usize,
     pub validity: usize,
@@ -354,11 +359,20 @@ impl TicketState {
             return vec![F::Quantity, F::Price];
         }
         if self.is_gtt() {
-            let mut fields = vec![F::Quantity, F::Side, F::GttType, F::Price, F::Trigger];
-            if self.gtt_oco {
-                fields.push(F::TargetPrice);
-                fields.push(F::TargetTrigger);
-            }
+            let mut fields = if self.gtt_oco {
+                vec![
+                    F::Side,
+                    F::GttType,
+                    F::Quantity,
+                    F::Price,
+                    F::Trigger,
+                    F::TargetQuantity,
+                    F::TargetPrice,
+                    F::TargetTrigger,
+                ]
+            } else {
+                vec![F::Quantity, F::Side, F::GttType, F::Price, F::Trigger]
+            };
             if self.side == Side::Sell {
                 fields.push(F::Trailing);
                 if self.gtt_trailing {
@@ -484,6 +498,7 @@ impl TicketState {
             | TicketField::Trigger
             | TicketField::Legs
             | TicketField::TrailPoints
+            | TicketField::TargetQuantity
             | TicketField::TargetPrice
             | TicketField::TargetTrigger => {}
         }
@@ -559,7 +574,12 @@ impl TicketState {
         let Some(next) = intent.pick(current, 2) else {
             return;
         };
-        self.side = if next == 1 { Side::Sell } else { Side::Buy };
+        let side = if next == 1 { Side::Sell } else { Side::Buy };
+        if self.gtt_oco && side != self.side {
+            std::mem::swap(&mut self.trigger, &mut self.trigger2);
+            std::mem::swap(&mut self.price, &mut self.price2);
+        }
+        self.side = side;
         if self.side == Side::Buy {
             self.gtt_trailing = false;
         }
@@ -570,21 +590,28 @@ impl TicketState {
             return;
         };
         self.gtt_oco = next == 1;
+        if self.gtt_oco && self.qty2.trim().is_empty() {
+            self.qty2 = self.qty.clone();
+        }
         if !self.gtt_oco || !self.trigger2.trim().is_empty() {
             return;
         }
         let Some(ltp) = seed.ltp else { return };
-        let lower = gtt_seed_trigger(ltp, -seed.percent, self.tick_size).unwrap_or_default();
-        let upper = gtt_seed_trigger(ltp, seed.percent, self.tick_size).unwrap_or_default();
-        if self.trigger.trim().is_empty()
-            || self
-                .trigger
-                .parse::<f64>()
-                .is_ok_and(|trigger| trigger >= ltp)
-        {
-            self.trigger = lower;
+        let below = self.side == Side::Sell;
+        let stoploss_percent = if below { -seed.percent } else { seed.percent };
+        let stoploss = gtt_seed_trigger(ltp, stoploss_percent, self.tick_size).unwrap_or_default();
+        let target = gtt_seed_trigger(ltp, -stoploss_percent, self.tick_size).unwrap_or_default();
+        let wrong_side = |trigger: f64| {
+            if below {
+                trigger >= ltp
+            } else {
+                trigger <= ltp
+            }
+        };
+        if self.trigger.trim().is_empty() || self.trigger.parse::<f64>().is_ok_and(wrong_side) {
+            self.trigger = stoploss;
         }
-        self.trigger2 = upper;
+        self.trigger2 = target;
         if self.price.parse::<f64>().ok() == tick_price(ltp, self.tick_size).parse::<f64>().ok() {
             self.price = self.trigger.clone();
         }
@@ -596,6 +623,7 @@ impl TicketState {
     fn buffer_mut(&mut self, field: TicketField) -> Option<&mut String> {
         match field {
             TicketField::Quantity => Some(&mut self.qty),
+            TicketField::TargetQuantity => Some(&mut self.qty2),
             TicketField::Price => Some(&mut self.price),
             TicketField::Trigger => Some(&mut self.trigger),
             TicketField::TargetPrice => Some(&mut self.price2),
@@ -609,6 +637,7 @@ impl TicketState {
     pub fn edit(&mut self, field: TicketField, code: KeyCode) {
         match field {
             TicketField::Quantity => edit_quantity(&mut self.qty, code),
+            TicketField::TargetQuantity => edit_quantity(&mut self.qty2, code),
             TicketField::Legs => edit_legs(&mut self.iceberg_legs, code),
             _ => match self.buffer_mut(field) {
                 Some(buffer) => edit_numeric(buffer, code),
@@ -624,6 +653,7 @@ impl TicketState {
         let lot = self.lot_size;
         match field {
             TicketField::Quantity => self.qty = step_qty(&self.qty, lot, dir),
+            TicketField::TargetQuantity => self.qty2 = step_qty(&self.qty2, lot, dir),
             TicketField::Legs => self.iceberg_legs = step_legs(&self.iceberg_legs, dir),
             TicketField::TtlMinutes => {
                 self.validity_ttl = (self.validity_ttl.cast_signed() + isize::from(dir))
@@ -917,11 +947,19 @@ fn on_tick(value: f64, tick: f64) -> bool {
 }
 
 fn require_max_qty(state: &TicketState, quantity: u64) -> Result<(), TicketIssue> {
+    require_max_qty_at(state, quantity, TicketField::Quantity)
+}
+
+fn require_max_qty_at(
+    state: &TicketState,
+    quantity: u64,
+    field: TicketField,
+) -> Result<(), TicketIssue> {
     if let Some(max) = state.max_order_quantity
         && quantity > u64::from(max)
     {
         return Err(FormIssue::at(
-            TicketField::Quantity,
+            field,
             format!("quantity {quantity} exceeds max order quantity {max}"),
         ));
     }
@@ -968,17 +1006,18 @@ fn parse_gtt_trigger(raw: &str, label: &str, field: TicketField) -> Result<f64, 
 }
 
 fn parse_qty(state: &TicketState) -> Result<u64, TicketIssue> {
-    let qty: u64 = state
-        .qty
+    parse_qty_at(state, &state.qty, TicketField::Quantity)
+}
+
+fn parse_qty_at(state: &TicketState, raw: &str, field: TicketField) -> Result<u64, TicketIssue> {
+    let qty: u64 = raw
         .parse()
         .ok()
         .filter(|qty| *qty > 0)
-        .ok_or_else(|| {
-            FormIssue::at(TicketField::Quantity, "quantity must be a positive integer")
-        })?;
+        .ok_or_else(|| FormIssue::at(field, "quantity must be a positive integer"))?;
     if state.lot_size > 1 && !qty.is_multiple_of(u64::from(state.lot_size)) {
         return Err(FormIssue::at(
-            TicketField::Quantity,
+            field,
             format!("quantity must be a multiple of lot size {}", state.lot_size),
         ));
     }
@@ -1191,13 +1230,38 @@ fn build_gtt_confirm(
     ))
 }
 
+fn require_oco_direction(side: Side, stoploss: f64, target: f64) -> Result<bool, TicketIssue> {
+    if (stoploss - target).abs() < f64::EPSILON {
+        return Err(FormIssue::at(
+            TicketField::TargetTrigger,
+            "OCO triggers must be different values",
+        ));
+    }
+    let (stoploss_below, relation) = match side {
+        Side::Sell => (true, "below"),
+        Side::Buy => (false, "above"),
+    };
+    if (stoploss < target) == stoploss_below {
+        return Ok(stoploss_below);
+    }
+    Err(FormIssue::at(
+        TicketField::Trigger,
+        format!(
+            "{} OCO stop loss trigger must be {relation} the target trigger",
+            side.label()
+        ),
+    ))
+}
+
 fn build_gtt_oco_confirm(
     state: &TicketState,
     modify: Option<i64>,
     ltp: Option<f64>,
 ) -> Result<ConfirmState, TicketIssue> {
-    let qty = parse_qty(state)?;
-    require_max_qty(state, qty)?;
+    let qty_a = parse_qty(state)?;
+    require_max_qty(state, qty_a)?;
+    let qty_b = parse_qty_at(state, &state.qty2, TicketField::TargetQuantity)?;
+    require_max_qty_at(state, qty_b, TicketField::TargetQuantity)?;
     let price_a = parse_price(&state.price, "price", TicketField::Price)?;
     let trigger_a = parse_gtt_trigger(&state.trigger, "trigger price", TicketField::Trigger)?;
     let price_b = parse_price(&state.price2, "second price", TicketField::TargetPrice)?;
@@ -1214,22 +1278,19 @@ fn build_gtt_oco_confirm(
     ] {
         require_on_tick(value, name, field, state.tick_size)?;
     }
-    if (trigger_a - trigger_b).abs() < f64::EPSILON {
-        return Err(FormIssue::at(
-            TicketField::TargetTrigger,
-            "OCO triggers must be different values",
-        ));
-    }
+    let stoploss_below = require_oco_direction(state.side, trigger_a, trigger_b)?;
     let product = resolve_product(state)?;
     let trailing_points = gtt_trailing_points(state)?;
-    let (lower, upper) = if trigger_a < trigger_b {
-        ((trigger_a, price_a), (trigger_b, price_b))
+    let stoploss = (trigger_a, price_a, qty_a);
+    let target = (trigger_b, price_b, qty_b);
+    let (lower, upper) = if stoploss_below {
+        (stoploss, target)
     } else {
-        ((trigger_b, price_b), (trigger_a, price_a))
+        (target, stoploss)
     };
     let fallback_ref = ltp.is_none();
     let last_price = ltp.unwrap_or(lower.0.midpoint(upper.0));
-    let leg = |price: f64| {
+    let leg = |price: f64, qty: u64| {
         serde_json::json!({
             "exchange": state.exchange,
             "tradingsymbol": state.tradingsymbol,
@@ -1249,7 +1310,7 @@ fn build_gtt_oco_confirm(
     if let Some(points) = trailing_points {
         condition["trailing_points"] = serde_json::json!([points]);
     }
-    let orders = serde_json::json!([leg(lower.1), leg(upper.1)]);
+    let orders = serde_json::json!([leg(lower.1, lower.2), leg(upper.1, upper.2)]);
     let form = vec![
         (
             "type".to_string(),
@@ -1266,15 +1327,14 @@ fn build_gtt_oco_confirm(
     let mut lines = vec![
         ("Symbol".to_string(), state.label()),
         ("Side".to_string(), state.side.label().to_string()),
-        ("Qty".to_string(), qty.to_string()),
         ("Type".to_string(), "OCO (two-leg)".to_string()),
         (
-            "Lower leg".to_string(),
-            format!("trg {} @ {}", lower.0, lower.1),
+            "Stop loss".to_string(),
+            format!("trg {} @ {} qty {}", stoploss.0, stoploss.1, stoploss.2),
         ),
         (
-            "Upper leg".to_string(),
-            format!("trg {} @ {}", upper.0, upper.1),
+            "Target".to_string(),
+            format!("trg {} @ {} qty {}", target.0, target.1, target.2),
         ),
         ("Product".to_string(), product.to_string()),
     ];

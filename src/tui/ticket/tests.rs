@@ -27,6 +27,7 @@ fn ticket() -> TicketState {
         trailing_points: String::new(),
         trigger2: String::new(),
         price2: String::new(),
+        qty2: String::new(),
         order_type: OrderType::Limit,
         product: 0,  // CNC
         validity: 0, // DAY
@@ -575,12 +576,23 @@ fn oco_ticket() -> TicketState {
     state.price = "1551.00".to_string();
     state.trigger2 = "1500.00".to_string();
     state.price2 = "1499.00".to_string();
+    state.qty2 = "5".to_string();
     state
 }
 
 #[test]
 fn gtt_oco_builds_two_leg_form() {
     let confirm = build_confirm(&oco_ticket(), Some(1523.40), 0).unwrap();
+    let line = |key: &str| {
+        confirm
+            .lines
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.clone())
+            .unwrap()
+    };
+    assert_eq!(line("Stop loss"), "trg 1550 @ 1551 qty 10");
+    assert_eq!(line("Target"), "trg 1500 @ 1499 qty 5");
     let form = match confirm.action {
         PendingAction::PlaceGtt { form } => form,
         other => panic!("expected place-GTT action, got {other:?}"),
@@ -603,10 +615,11 @@ fn gtt_oco_builds_two_leg_form() {
     let legs = orders.as_array().unwrap();
     assert_eq!(legs.len(), 2);
     assert_eq!(legs[0]["price"], 1499.0);
+    assert_eq!(legs[0]["quantity"], 5);
     assert_eq!(legs[1]["price"], 1551.0);
+    assert_eq!(legs[1]["quantity"], 10);
     for leg in legs {
         assert_eq!(leg["transaction_type"], "BUY");
-        assert_eq!(leg["quantity"], 10);
         assert_eq!(leg["order_type"], "LIMIT");
         assert_eq!(leg["product"], "CNC");
     }
@@ -616,7 +629,7 @@ fn gtt_oco_builds_two_leg_form() {
 #[test]
 fn gtt_trailing_oco_uses_trailing_two_leg_type() {
     let mut state = oco_ticket();
-    state.side = Side::Sell;
+    state.select(TicketField::Side, ControlIntent::Option(1), NO_SEED);
     state.gtt_trailing = true;
     state.trailing_points = "2.00".to_string();
     let confirm = build_confirm(&state, Some(1523.40), 0).unwrap();
@@ -668,11 +681,12 @@ fn gtt_fields_track_oco_and_trailing() {
     assert_eq!(
         state.visible_fields(),
         [
-            F::Quantity,
             F::Side,
             F::GttType,
+            F::Quantity,
             F::Price,
             F::Trigger,
+            F::TargetQuantity,
             F::TargetPrice,
             F::TargetTrigger,
             F::Trailing,
@@ -1008,6 +1022,7 @@ fn gtt_trigger_below_the_floor_quotes_kites_message() {
     assert!(build_confirm(&state, Some(0.05), 0).is_ok());
 
     state.gtt_oco = true;
+    state.qty2 = state.qty.clone();
     state.price2 = "0.10".to_string();
     state.trigger2 = String::new();
     assert_eq!(
@@ -1311,3 +1326,51 @@ fn clicking_the_selected_option_changes_nothing() {
 
 #[path = "regressions.rs"]
 mod regressions;
+
+#[test]
+fn a_new_oco_seeds_the_stop_loss_on_the_side_kite_expects() {
+    let seed = super::GttSeed {
+        ltp: Some(1000.0),
+        percent: 10.0,
+    };
+    for (side, stoploss, target) in [(Side::Sell, 900.0, 1100.0), (Side::Buy, 1100.0, 900.0)] {
+        let mut state = gtt_ticket();
+        state.side = side;
+        state.trigger = String::new();
+        state.select(TicketField::GttType, ControlIntent::Option(1), seed);
+        let parsed = |raw: &str| raw.parse::<f64>().unwrap();
+        assert_eq!(
+            (parsed(&state.trigger), parsed(&state.trigger2)),
+            (stoploss, target),
+            "{side:?}"
+        );
+    }
+}
+
+#[test]
+fn switching_an_oco_side_moves_the_legs_with_it() {
+    let mut state = oco_ticket();
+    state.select(TicketField::Side, ControlIntent::Option(1), NO_SEED);
+    assert_eq!(state.side, Side::Sell);
+    assert_eq!(
+        (state.trigger.as_str(), state.price.as_str()),
+        ("1500.00", "1499.00")
+    );
+    assert_eq!(
+        (state.trigger2.as_str(), state.price2.as_str()),
+        ("1550.00", "1551.00")
+    );
+    assert!(build_confirm(&state, Some(1523.40), 0).is_ok());
+}
+
+#[test]
+fn an_oco_stop_loss_on_the_wrong_side_of_the_target_is_refused() {
+    let mut state = oco_ticket();
+    state.side = Side::Sell;
+    let issue = build_confirm(&state, Some(1523.40), 0).unwrap_err();
+    assert_eq!(issue.field, Some(TicketField::Trigger));
+    assert_eq!(
+        issue.message,
+        "SELL OCO stop loss trigger must be below the target trigger"
+    );
+}

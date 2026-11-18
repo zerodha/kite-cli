@@ -111,6 +111,7 @@ impl App {
             trailing_points: String::new(),
             trigger2: String::new(),
             price2: String::new(),
+            qty2: String::new(),
 
             order_type: prefs.map_or(OrderType::Limit, |p| p.order_type),
             product: product_idx,
@@ -191,6 +192,7 @@ impl App {
             trailing_points: String::new(),
             trigger2: String::new(),
             price2: String::new(),
+            qty2: String::new(),
             order_type: OrderType::Limit,
             product: 0,
             validity: 0,
@@ -258,6 +260,7 @@ impl App {
             trailing_points: String::new(),
             trigger2: String::new(),
             price2: String::new(),
+            qty2: String::new(),
             order_type: ORDER_TYPES
                 .iter()
                 .copied()
@@ -358,6 +361,7 @@ impl App {
             trailing_points: String::new(),
             trigger2: String::new(),
             price2: String::new(),
+            qty2: String::new(),
             order_type: OrderType::Limit,
             product: product_idx,
             validity: 0,

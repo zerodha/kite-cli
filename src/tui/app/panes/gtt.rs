@@ -115,15 +115,20 @@ impl App {
                     .map(std::string::ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(", ");
-                let order_line = gtt.orders.first().map_or_else(
-                    || ".".to_string(),
-                    |order| {
-                        format!(
-                            "{} {} @ {}",
-                            order.transaction_type, order.quantity, order.price
-                        )
-                    },
-                );
+                let order_line = if gtt.orders.is_empty() {
+                    ".".to_string()
+                } else {
+                    gtt.orders
+                        .iter()
+                        .map(|order| {
+                            format!(
+                                "{} {} @ {}",
+                                order.transaction_type, order.quantity, order.price
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" / ")
+                };
                 self.modals
                     .push(Modal::Confirm(Box::new(ConfirmState::plain(
                         "Delete GTT".to_string(),
@@ -168,13 +173,14 @@ impl App {
 
         let product = (!order.product.is_empty()).then_some(order.product.as_str());
 
-        let oco = (gtt.orders.len() >= 2 && gtt.condition.trigger_values.len() >= 2)
-            .then(|| (gtt.orders[1].price, gtt.condition.trigger_values[1]));
+        let is_oco = gtt.orders.len() >= 2 && gtt.condition.trigger_values.len() >= 2;
+        let stoploss = if is_oco { side.oco_stoploss_index() } else { 0 };
+        let first = &gtt.orders[stoploss];
         #[expect(
             clippy::cast_possible_truncation,
             reason = "GTT wire quantity uses f64 and keeps the existing integer conversion"
         )]
-        let quantity = order.quantity as i64;
+        let quantity = first.quantity as i64;
         self.open_gtt_ticket(
             side,
             gtt.condition.exchange.clone(),
@@ -182,16 +188,17 @@ impl App {
             token,
             quantity,
             product,
-            Some(order.price),
-            gtt.condition.trigger_values.first().copied(),
+            Some(first.price),
+            gtt.condition.trigger_values.get(stoploss).copied(),
             Some(gtt.id),
         );
-        if let Some((price2, trigger2)) = oco
-            && let Some(Modal::Ticket(state)) = self.modals.last_mut()
-        {
+        if is_oco && let Some(Modal::Ticket(state)) = self.modals.last_mut() {
+            let target = 1 - stoploss;
+            let leg = &gtt.orders[target];
             state.gtt_oco = true;
-            state.price2 = tick_price(price2, state.tick_size);
-            state.trigger2 = tick_price(trigger2, state.tick_size);
+            state.qty2 = format!("{}", leg.quantity);
+            state.price2 = tick_price(leg.price, state.tick_size);
+            state.trigger2 = tick_price(gtt.condition.trigger_values[target], state.tick_size);
         }
         if gtt.trigger_type.starts_with("trailing-")
             && let Some(Modal::Ticket(state)) = self.modals.last_mut()
@@ -369,6 +376,147 @@ mod tests {
         };
         assert_eq!(form[0].1, "trailing-single");
     }
+    fn buy_oco_with_uneven_legs() -> Gtt {
+        let mut row = oco_with_uneven_legs();
+        row.condition.trigger_values = vec![900.0, 1150.0];
+        row.orders[0].price = 905.0;
+        row.orders[0].quantity = 50.0;
+        row.orders[1].price = 1155.0;
+        row.orders[1].quantity = 100.0;
+        for leg in &mut row.orders {
+            leg.transaction_type = "BUY".into();
+        }
+        row
+    }
+
+    #[test]
+    fn a_buy_oco_opens_with_its_upper_leg_as_the_stop_loss() {
+        let mut app = test_app();
+        app.instruments = Some(Arc::new(InstrumentStore::new(vec![master_inst(
+            "NSE", "NSE", "INFY", 408_065,
+        )])));
+        app.open_gtt_modify(&buy_oco_with_uneven_legs());
+        let Some(Modal::Ticket(state)) = app.modals.last() else {
+            panic!("expected modify ticket");
+        };
+        let parsed = |raw: &str| raw.parse::<f64>().unwrap();
+        assert_eq!(
+            (
+                state.qty.as_str(),
+                parsed(&state.price),
+                parsed(&state.trigger)
+            ),
+            ("100", 1155.0, 1150.0),
+            "stop loss section"
+        );
+        assert_eq!(
+            (
+                state.qty2.as_str(),
+                parsed(&state.price2),
+                parsed(&state.trigger2)
+            ),
+            ("50", 905.0, 900.0),
+            "target section"
+        );
+        let confirm = crate::tui::ticket::build_confirm(state, Some(1000.0), 0).unwrap();
+        let crate::tui::ticket::PendingAction::ModifyGtt { form, .. } = &confirm.action else {
+            panic!("expected modify GTT action");
+        };
+        let orders: serde_json::Value =
+            serde_json::from_str(&form.iter().find(|(key, _)| key == "orders").unwrap().1).unwrap();
+        let legs: Vec<(f64, f64)> = orders
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|leg| {
+                (
+                    leg["price"].as_f64().unwrap(),
+                    leg["quantity"].as_f64().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(legs, vec![(905.0, 50.0), (1155.0, 100.0)]);
+    }
+
+    fn oco_with_uneven_legs() -> Gtt {
+        let mut row = crate::tui::data::test_models::gtt();
+        row.id = 200_001;
+        row.trigger_type = "two-leg".into();
+        row.status = "active".into();
+        row.condition = {
+            let mut row = crate::tui::data::test_models::gtt_condition();
+            row.exchange = "NSE".into();
+            row.tradingsymbol = "INFY".into();
+            row.trigger_values = vec![1000.0, 1150.0];
+            row.last_price = 1100.0;
+            row.trailing_points = Vec::new();
+            row
+        };
+        let leg = |quantity: f64, price: f64| {
+            let mut row = crate::tui::data::test_models::gtt_order();
+            row.transaction_type = "SELL".into();
+            row.quantity = quantity;
+            row.price = price;
+            row.product = "CNC".into();
+            row
+        };
+        row.orders = vec![leg(100.0, 995.0), leg(50.0, 1155.0)];
+        row
+    }
+
+    #[test]
+    fn oco_modify_keeps_each_legs_quantity() {
+        let mut app = test_app();
+        app.instruments = Some(Arc::new(InstrumentStore::new(vec![master_inst(
+            "NSE", "NSE", "INFY", 408_065,
+        )])));
+        app.open_gtt_modify(&oco_with_uneven_legs());
+        let Some(Modal::Ticket(state)) = app.modals.last_mut() else {
+            panic!("expected modify ticket");
+        };
+        state.trigger = "1010".into();
+        let confirm = crate::tui::ticket::build_confirm(state, Some(1100.0), 0).unwrap();
+        let crate::tui::ticket::PendingAction::ModifyGtt { form, .. } = &confirm.action else {
+            panic!("expected modify GTT action");
+        };
+        let orders: serde_json::Value =
+            serde_json::from_str(&form.iter().find(|(key, _)| key == "orders").unwrap().1).unwrap();
+        let legs: Vec<(f64, f64)> = orders
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|leg| {
+                (
+                    leg["price"].as_f64().unwrap(),
+                    leg["quantity"].as_f64().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(legs, vec![(995.0, 100.0), (1155.0, 50.0)]);
+        let review: Vec<String> = confirm
+            .lines
+            .iter()
+            .map(|(k, v)| format!("{k} {v}"))
+            .collect();
+        assert!(review.iter().any(|line| line.contains("100")), "{review:?}");
+        assert!(review.iter().any(|line| line.contains("50")), "{review:?}");
+    }
+
+    #[test]
+    fn oco_delete_confirmation_names_both_legs() {
+        let mut app = test_app();
+        app.gtts = Some(vec![oco_with_uneven_legs()]);
+        app.gtts_gen += 1;
+        app.key_gtt(crossterm::event::KeyEvent::from(
+            crossterm::event::KeyCode::Char('x'),
+        ));
+        let Some(Modal::Confirm(confirm)) = app.modals.last() else {
+            panic!("expected delete confirmation");
+        };
+        let order = &confirm.lines.iter().find(|(k, _)| k == "Order").unwrap().1;
+        assert_eq!(order, "SELL 100 @ 995 / SELL 50 @ 1155");
+    }
+
     #[test]
     fn simplification_regression_exact_gtt_symbol_survives_normalized_aliases() {
         use crate::tui::app::test_support::master_inst;

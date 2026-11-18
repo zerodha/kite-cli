@@ -150,6 +150,15 @@ impl Side {
             Side::Sell => "SELL",
         }
     }
+
+    /// Kite orders OCO legs by trigger level, lower first. A SELL's stop loss
+    /// is the lower leg and a BUY's is the upper one.
+    pub fn oco_stoploss_index(self) -> usize {
+        match self {
+            Side::Sell => 0,
+            Side::Buy => 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

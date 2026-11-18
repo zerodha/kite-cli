@@ -184,9 +184,33 @@ fn toggle(
     )
 }
 
+fn gtt_leg_items(state: &TicketState) -> Vec<forms::FormItem> {
+    use TicketField as F;
+    let section = |name: &str| forms::FormItem::Section(name.to_string());
+    if !state.gtt_oco {
+        return vec![
+            section("Trigger"),
+            well(state, F::Price, "Price", &state.price),
+            well(state, F::Trigger, "Trigger", &state.trigger),
+        ];
+    }
+    vec![
+        section("Stop loss"),
+        well(state, F::Quantity, "SL qty", &state.qty),
+        well(state, F::Price, "SL price", &state.price),
+        well(state, F::Trigger, "SL trigger", &state.trigger),
+        section("Target"),
+        well(state, F::TargetQuantity, "Tgt qty", &state.qty2),
+        well(state, F::TargetPrice, "Tgt price", &state.price2),
+        well(state, F::TargetTrigger, "Tgt trigger", &state.trigger2),
+    ]
+}
+
 fn gtt_ticket_items(state: &TicketState, wide: bool) -> Vec<forms::FormItem> {
     let mut items = Vec::new();
-    items.push(well(state, TicketField::Quantity, "Quantity", &state.qty));
+    if !state.gtt_oco {
+        items.push(well(state, TicketField::Quantity, "Quantity", &state.qty));
+    }
     items.push(segments(
         state,
         TicketField::Side,
@@ -210,41 +234,7 @@ fn gtt_ticket_items(state: &TicketState, wide: bool) -> Vec<forms::FormItem> {
         allowed_gtt_products(&state.exchange)[0].to_string(),
         "fixed",
     ));
-    items.push(forms::FormItem::Section(
-        if state.gtt_oco {
-            "Stop loss"
-        } else {
-            "Trigger"
-        }
-        .to_string(),
-    ));
-    let (price_label, trigger_label) = if state.gtt_oco {
-        ("SL price", "SL trigger")
-    } else {
-        ("Price", "Trigger")
-    };
-    items.push(well(state, TicketField::Price, price_label, &state.price));
-    items.push(well(
-        state,
-        TicketField::Trigger,
-        trigger_label,
-        &state.trigger,
-    ));
-    if state.gtt_oco {
-        items.push(forms::FormItem::Section("Target".to_string()));
-        items.push(well(
-            state,
-            TicketField::TargetPrice,
-            "Tgt price",
-            &state.price2,
-        ));
-        items.push(well(
-            state,
-            TicketField::TargetTrigger,
-            "Tgt trigger",
-            &state.trigger2,
-        ));
-    }
+    items.extend(gtt_leg_items(state));
     if state.side == Side::Sell {
         items.push(toggle(
             state,
@@ -270,10 +260,10 @@ fn gtt_ticket_items(state: &TicketState, wide: bool) -> Vec<forms::FormItem> {
     ));
     if wide {
         items.push(forms::FormItem::Note(
-            if state.gtt_oco {
-                "OCO uses the lower trigger for stop loss and upper for target."
-            } else {
-                "The stored LIMIT order is placed when the trigger fires."
+            match (state.gtt_oco, state.side) {
+                (false, _) => "The stored LIMIT order is placed when the trigger fires.",
+                (true, Side::Sell) => "SELL OCO: stop loss below LTP, target above.",
+                (true, Side::Buy) => "BUY OCO: stop loss above LTP, target below.",
             }
             .to_string(),
         ));
@@ -530,6 +520,7 @@ mod render_tests {
             trailing_points: String::new(),
             trigger2: String::new(),
             price2: String::new(),
+            qty2: String::new(),
             order_type: kiteconnect::OrderType::Limit,
             product: 2,
             validity,
@@ -564,6 +555,7 @@ mod render_tests {
             trailing_points: String::new(),
             trigger2: String::new(),
             price2: String::new(),
+            qty2: String::new(),
             order_type: kiteconnect::OrderType::Limit, // LIMIT
             product: 0,                                // CNC
             validity: 0,                               // DAY
@@ -592,6 +584,7 @@ mod render_tests {
             price: "1449.95".to_string(),
             trigger: "1450.00".to_string(),
             price2: "1600.00".to_string(),
+            qty2: "5".to_string(),
             trigger2: "1599.95".to_string(),
             focus: TicketField::Trigger,
             ..mockup_ticket()
@@ -905,14 +898,15 @@ mod render_tests {
 | Stored trigger | LTP 1,500.00 | lot 1 | tick 0.05                    |
 +----------------------------------------------------------------------+
 | Order                                                                |
-|       Quantity  [10            ]                                     |
 |           Side  [ BUY |*SELL ]                                       |
 |           Type  [ single |*OCO ]                                     |
 |        Product  CNC (fixed)                                          |
 | Stop loss                                                            |
+|         SL qty  [10            ]                                     |
 |       SL price  [1449.95       ]                                     |
 | >   SL trigger  [1450.00_      ]                                     |
 | Target                                                               |
+|        Tgt qty  [5             ]                                     |
 |      Tgt price  [1600.00       ]                                     |
 |    Tgt trigger  [1599.95       ]                                     |
 |       Trailing  [ Off |*On ]                                         |
@@ -924,7 +918,7 @@ mod render_tests {
 +----------------------------------------------------------------------+
 ",
         );
-        assert_eq!(rect_tuple(modal_rect(&app)), (4, 1, 72, 21));
+        assert_eq!(rect_tuple(modal_rect(&app)), (4, 1, 72, 22));
 
         assert_mockup(
             &modal_ascii(120, 35, |frame| draw_ticket(frame, &state, &app)),
@@ -933,27 +927,28 @@ mod render_tests {
 | Stored trigger | LTP 1,500.00 | lot 1 | tick 0.05                                    |
 +--------------------------------------------------------------------------------------+
 | Order                                                                                |
-|       Quantity  [10            ]                                                     |
 |           Side  [ BUY |*SELL ]                                                       |
 |           Type  [ single |*OCO ]                                                     |
 |        Product  CNC (fixed)                                                          |
 | Stop loss                                                                            |
+|         SL qty  [10            ]                                                     |
 |       SL price  [1449.95       ]                                                     |
 | >   SL trigger  [1450.00_      ]                                                     |
 | Target                                                                               |
+|        Tgt qty  [5             ]                                                     |
 |      Tgt price  [1600.00       ]                                                     |
 |    Tgt trigger  [1599.95       ]                                                     |
 |       Trailing  [ Off |*On ]                                                         |
 |      Trail pts  [5.00          ]                                                     |
 | Creates stored LIMIT orders when triggers fire.                                      |
-| OCO uses the lower trigger for stop loss and upper for target.                       |
+| SELL OCO: stop loss below LTP, target above.                                         |
 +--------------------------------------------------------------------------------------+
 | Tab/Shift-Tab Field  Up/Down Step  Left/Right Choice                                 |
 | [Enter Review GTT]  [Esc Cancel]                                                     |
 +--------------------------------------------------------------------------------------+
 ",
         );
-        assert_eq!(rect_tuple(modal_rect(&app)), (16, 6, 88, 22));
+        assert_eq!(rect_tuple(modal_rect(&app)), (16, 6, 88, 23));
     }
 
     #[test]

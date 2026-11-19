@@ -90,12 +90,13 @@ pub fn compact_amount(value: f64) -> String {
     let magnitude = value.abs();
     // Pick the unit after rounding: 99,99,500 is 99.995 lakh, which rounds to
     // 100.00 and so reads as a crore.
-    let lakhs = format!("{:.2}", magnitude / 100_000.0);
-    if magnitude < 10_000_000.0 && lakhs != "100.00" {
-        format!("{lakhs}L")
-    } else {
-        format!("{:.2}Cr", magnitude / 10_000_000.0)
+    if magnitude < 10_000_000.0 {
+        let lakhs = format!("{:.2}", magnitude / 100_000.0);
+        if lakhs != "100.00" {
+            return format!("{lakhs}L");
+        }
     }
+    format!("{:.2}Cr", magnitude / 10_000_000.0)
 }
 
 pub fn fit_cell(full: &str, compact: &str, width: usize) -> String {

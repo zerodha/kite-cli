@@ -88,8 +88,11 @@ pub fn fit_money(value: f64, full: &str, width: usize) -> String {
 
 pub fn compact_amount(value: f64) -> String {
     let magnitude = value.abs();
-    if magnitude < 10_000_000.0 {
-        format!("{:.2}L", magnitude / 100_000.0)
+    // Pick the unit after rounding: 99,99,500 is 99.995 lakh, which rounds to
+    // 100.00 and so reads as a crore.
+    let lakhs = format!("{:.2}", magnitude / 100_000.0);
+    if magnitude < 10_000_000.0 && lakhs != "100.00" {
+        format!("{lakhs}L")
     } else {
         format!("{:.2}Cr", magnitude / 10_000_000.0)
     }
@@ -178,14 +181,9 @@ pub fn compact_qty(value: u64) -> String {
         0..=99_999 => group_indian(value),
         #[expect(
             clippy::cast_precision_loss,
-            reason = "this quantity range is exactly representable in f64"
-        )]
-        100_000..=9_999_999 => format!("{:.2}L", value as f64 / 100_000.0),
-        #[expect(
-            clippy::cast_precision_loss,
             reason = "compact quantity is an approximate two-decimal display"
         )]
-        _ => format!("{:.2}Cr", value as f64 / 10_000_000.0),
+        _ => compact_amount(value as f64),
     }
 }
 
@@ -856,10 +854,34 @@ mod tests {
     }
 
     #[test]
+    fn compact_amount_never_shows_100_lakh() {
+        assert_eq!(compact_amount(9_999_499.0), "99.99L");
+        assert_eq!(compact_amount(9_999_500.0), "1.00Cr");
+        assert_eq!(compact_amount(9_999_999.0), "1.00Cr");
+        assert_eq!(compact_amount(10_000_000.0), "1.00Cr");
+    }
+
+    #[test]
+    fn fit_money_rounds_up_to_crore_with_either_sign() {
+        let full = signed_price(9_999_800.0); // "+99,99,800.00" = 13 chars
+        assert_eq!(fit_money(9_999_800.0, &full, 12), "+1.00Cr");
+        let full = signed_price(-9_999_800.0);
+        assert_eq!(fit_money(-9_999_800.0, &full, 12), "-1.00Cr");
+    }
+
+    #[test]
     fn formats_compact_quantities() {
         assert_eq!(compact_qty(99_999), "99,999");
         assert_eq!(compact_qty(123_456), "1.23L");
         assert_eq!(compact_qty(45_600_000), "4.56Cr");
+    }
+
+    #[test]
+    fn compact_qty_never_shows_100_lakh() {
+        assert_eq!(compact_qty(9_999_499), "99.99L");
+        assert_eq!(compact_qty(9_999_500), "1.00Cr");
+        assert_eq!(compact_qty(9_999_999), "1.00Cr");
+        assert_eq!(compact_qty(10_000_000), "1.00Cr");
     }
 
     #[test]

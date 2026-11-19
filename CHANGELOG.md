@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Modifying an OCO GTT from the TUI keeps each leg's quantity. It used to send the stop-loss leg's quantity on both legs, so a target of 50 behind a stop loss of 100 became 100 with no warning. The OCO ticket now has an SL qty and a Tgt qty, filled from the stored legs, and the review shows each leg's quantity. The GTT list and the delete confirmation show every leg, as `kite gtt list` does ([#14](https://github.com/zerodha/kite-cli/issues/14)).
 - The TUI OCO ticket puts the stop loss on the side Kite expects: below the target for a SELL, above it for a BUY. A BUY OCO used to show its target leg under Stop loss, and a new BUY OCO seeded its stop loss below the price. Switching the side of an OCO swaps its legs, and the review refuses a stop loss on the wrong side of the target.
+- The TUI shows amounts and quantities that round to 100 lakh as `1.00Cr`. A figure too wide for its column, such as a Holdings P&L of +99,99,800, used to show as `+100.00L`, and volumes, OI and market depth totals from 99,99,500 to 99,99,999 showed as `100.00L`.
 
 ## [0.2.5] - 2026-11-18
 

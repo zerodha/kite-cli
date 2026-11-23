@@ -1736,6 +1736,10 @@ fn alerts_modify_preserves_disabled_instrument_conditions_and_allows_rhs_changes
             json!({"name":"NIFTY 50","type":"simple","status":"disabled","lhs_exchange":"INDICES","lhs_tradingsymbol":"NIFTY 50","lhs_attribute":"LastTradedPrice","operator":">=","rhs_type":"instrument","rhs_exchange":"INDICES","rhs_tradingsymbol":"NIFTY 50","rhs_attribute":"HighPrice"}),
         ),
         (
+            vec!["--lhs", "NSE:INFY", "--rhs", "NSE:NIFTY 50"],
+            json!({"name":"NIFTY 50","type":"simple","status":"disabled","lhs_exchange":"NSE","lhs_tradingsymbol":"INFY","lhs_attribute":"LastTradedPrice","operator":">=","rhs_type":"instrument","rhs_exchange":"INDICES","rhs_tradingsymbol":"NIFTY 50","rhs_attribute":"HighPrice"}),
+        ),
+        (
             vec!["--value", "-1.5"],
             json!({"name":"NIFTY 50","type":"simple","status":"disabled","lhs_exchange":"INDICES","lhs_tradingsymbol":"NIFTY 50","lhs_attribute":"LastTradedPrice","operator":">=","rhs_type":"constant","rhs_constant":"-1.5"}),
         ),

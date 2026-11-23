@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- `kite alerts create` and `kite alerts modify` load the instrument list once, not twice, when both `--lhs` and `--rhs` name an instrument.
+
 ### Fixed
 
 - Modifying an OCO GTT from the TUI keeps each leg's quantity. It used to send the stop-loss leg's quantity on both legs, so a target of 50 behind a stop loss of 100 became 100 with no warning. The OCO ticket now has an SL qty and a Tgt qty, filled from the stored legs, and the review shows each leg's quantity. The GTT list and the delete confirmation show every leg, as `kite gtt list` does ([#14](https://github.com/zerodha/kite-cli/issues/14)).

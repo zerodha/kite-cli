@@ -3,6 +3,7 @@ use crate::app::output::Output;
 use crate::app::render;
 use crate::app::runtime::Runtime;
 use crate::cli::{AlertWriteArgs, AlertsCommands};
+use crate::instruments::InstrumentStore;
 use crate::util::wire_value;
 use anyhow::{Context, Result, bail};
 use kiteconnect::{Alert, AlertParams, AlertRhsType, AlertStatus, AlertType, Request};
@@ -118,8 +119,9 @@ async fn params(
     if name.trim().is_empty() || name.chars().count() > 100 {
         bail!("alert name must contain 1 to 100 characters");
     }
+    let mut store = None;
     let (exchange, symbol) = if let Some(lhs) = &args.lhs {
-        resolve_instrument(rt, lhs).await?
+        resolve_instrument(rt, &mut store, lhs).await?
     } else {
         let alert = current.context("--lhs is required")?;
         (alert.lhs_exchange.clone(), alert.lhs_tradingsymbol.clone())
@@ -148,7 +150,7 @@ async fn params(
         return Ok(params.rhs_constant(value));
     }
     if let Some(rhs) = &args.rhs {
-        let (exchange, symbol) = resolve_instrument(rt, rhs).await?;
+        let (exchange, symbol) = resolve_instrument(rt, &mut store, rhs).await?;
         return Ok(params.rhs_instrument(
             exchange,
             symbol,
@@ -189,14 +191,24 @@ fn stored(value: Option<&str>) -> Option<&str> {
     value.filter(|value| !value.is_empty())
 }
 
-async fn resolve_instrument(rt: &Runtime, requested: &str) -> Result<(String, String)> {
+/// Loads the instrument master on demand and shares the store between lookups.
+async fn resolve_instrument(
+    rt: &Runtime,
+    store: &mut Option<InstrumentStore>,
+    requested: &str,
+) -> Result<(String, String)> {
     let (exchange, symbol) = requested
         .split_once(':')
         .filter(|(exchange, symbol)| !exchange.trim().is_empty() && !symbol.trim().is_empty())
         .with_context(|| format!("expected EXCHANGE:SYMBOL, got `{requested}`"))?;
-    let store = crate::instruments::load(&rt.app_uuid()?)
-        .await
-        .map_err(anyhow::Error::msg)?;
+    let store = match store {
+        Some(store) => store,
+        None => store.insert(
+            crate::instruments::load(&rt.app_uuid()?)
+                .await
+                .map_err(anyhow::Error::msg)?,
+        ),
+    };
     let instrument = store
         .by_exact_symbol(symbol)
         .into_iter()

@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-27
+
 ### Changed
 
 - `kite alerts create` and `kite alerts modify` load the instrument list once, not twice, when both `--lhs` and `--rhs` name an instrument.

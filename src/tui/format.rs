@@ -368,10 +368,30 @@ pub fn exchange_session_open(exchange: &str, unix_secs: u64) -> bool {
     let (open, close) = match exchange {
         "NSE" | "BSE" | "NFO" | "BFO" => (9 * 3600 + 15 * 60, 15 * 3600 + 30 * 60),
         "CDS" | "BCD" => (9 * 3600, 17 * 3600),
-        "MCX" | "NCO" => (9 * 3600, 23 * 3600 + 30 * 60),
+        // Commodities close at 23:30 while the US observes daylight saving
+        // time and at 23:55 otherwise.
+        "MCX" | "NCO" if us_daylight_saving(unix_secs) => (9 * 3600, 23 * 3600 + 30 * 60),
+        "MCX" | "NCO" => (9 * 3600, 23 * 3600 + 55 * 60),
         _ => return false,
     };
     (open..close).contains(&sod)
+}
+
+/// US daylight saving time runs from the second Sunday of March to the first
+/// Sunday of November. Both switches fall on a Sunday, when Indian exchanges
+/// are shut, so the IST date settles it for every trading day.
+fn us_daylight_saving(unix_secs: u64) -> bool {
+    let (_, month, day) = date_ist(unix_secs);
+    // `day - weekday` is the date of the last Sunday on or before this day.
+    let weekday = weekday_ist(unix_secs);
+    match month {
+        4..=10 => true,
+        // The second Sunday of March falls on the 8th to the 14th.
+        3 => day >= weekday + 8,
+        // The first Sunday of November falls on the 1st to the 7th.
+        11 => day <= weekday,
+        _ => false,
+    }
 }
 
 pub fn change_style(value: f64) -> Style {
@@ -992,5 +1012,31 @@ mod tests {
         assert!(exchange_session_open("MCX", ist(2026, 7, 7, 23, 29, 59)));
         assert!(!exchange_session_open("MCX", ist(2026, 7, 7, 23, 30, 0)));
         assert!(!exchange_session_open("NSE", ist(2026, 7, 11, 10, 0, 0)));
+    }
+
+    #[test]
+    fn commodities_close_at_2355_outside_us_daylight_saving() {
+        // NSE/COM/76446: 23:55 from 2 Nov 2026 to 12 Mar 2027.
+        assert!(exchange_session_open("MCX", ist(2026, 11, 23, 23, 54, 59)));
+        assert!(!exchange_session_open("MCX", ist(2026, 11, 23, 23, 55, 0)));
+        assert!(exchange_session_open("NCO", ist(2027, 1, 15, 23, 45, 0)));
+        assert!(exchange_session_open("MCX", ist(2026, 11, 2, 23, 45, 0)));
+        assert!(exchange_session_open("MCX", ist(2027, 3, 12, 23, 45, 0)));
+        // NSE/COM/72699: 23:30 from 9 Mar to 30 Oct 2026, so the Friday
+        // before still closes at 23:55.
+        assert!(exchange_session_open("MCX", ist(2026, 3, 6, 23, 45, 0)));
+        assert!(!exchange_session_open("MCX", ist(2026, 3, 9, 23, 30, 0)));
+        assert!(!exchange_session_open("NCO", ist(2026, 10, 30, 23, 30, 0)));
+        // US daylight saving time 2027 starts on Sun 14 Mar.
+        assert!(!exchange_session_open("MCX", ist(2027, 3, 15, 23, 30, 0)));
+        // US daylight saving time 2027 ends on Sun 7 Nov, so early November
+        // weekdays before the first Sunday still close at 23:30.
+        assert!(exchange_session_open("MCX", ist(2027, 11, 5, 23, 29, 59)));
+        assert!(!exchange_session_open("MCX", ist(2027, 11, 5, 23, 30, 0)));
+        assert!(exchange_session_open("MCX", ist(2027, 11, 8, 23, 45, 0)));
+        // The morning open and weekends are unchanged.
+        assert!(!exchange_session_open("MCX", ist(2026, 11, 23, 8, 59, 59)));
+        assert!(exchange_session_open("MCX", ist(2026, 11, 23, 9, 0, 0)));
+        assert!(!exchange_session_open("MCX", ist(2026, 11, 21, 23, 45, 0)));
     }
 }

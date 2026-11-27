@@ -1029,6 +1029,11 @@ mod tests {
         assert!(!exchange_session_open("NCO", ist(2026, 10, 30, 23, 30, 0)));
         // US daylight saving time 2027 starts on Sun 14 Mar.
         assert!(!exchange_session_open("MCX", ist(2027, 3, 15, 23, 30, 0)));
+        // US daylight saving time 2027 ends on Sun 7 Nov, so early November
+        // weekdays before the first Sunday still close at 23:30.
+        assert!(exchange_session_open("MCX", ist(2027, 11, 5, 23, 29, 59)));
+        assert!(!exchange_session_open("MCX", ist(2027, 11, 5, 23, 30, 0)));
+        assert!(exchange_session_open("MCX", ist(2027, 11, 8, 23, 45, 0)));
         // The morning open and weekends are unchanged.
         assert!(!exchange_session_open("MCX", ist(2026, 11, 23, 8, 59, 59)));
         assert!(exchange_session_open("MCX", ist(2026, 11, 23, 9, 0, 0)));

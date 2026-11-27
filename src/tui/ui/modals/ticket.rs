@@ -1,7 +1,6 @@
 use super::{CANCEL, FIELD_HELP, TOO_SMALL, side_color};
 use crate::tui::app::{
-    App, ORDER_TYPES, PRODUCTS, Side, TTL_MINUTES, VALIDITIES, allowed_gtt_products,
-    allowed_products,
+    App, ORDER_TYPES, PRODUCTS, Side, TTL_MINUTES, VALIDITIES, allowed_products,
 };
 use crate::tui::form::ModalField;
 use crate::tui::format;
@@ -231,7 +230,7 @@ fn gtt_ticket_items(state: &TicketState, wide: bool) -> Vec<forms::FormItem> {
     ));
     items.push(fixed(
         "Product",
-        allowed_gtt_products(&state.exchange)[0].to_string(),
+        PRODUCTS[state.product].to_string(),
         "fixed",
     ));
     items.extend(gtt_leg_items(state));
@@ -502,7 +501,7 @@ mod render_tests {
     use super::{draw_ticket, ticket_footer};
     use crate::tui::app::Side;
     use crate::tui::form::FormViewport;
-    use crate::tui::ticket::{TicketField, TicketKind, TicketState};
+    use crate::tui::ticket::{PendingAction, TicketField, TicketKind, TicketState, build_confirm};
 
     fn ticket(exchange: &str, validity: usize) -> TicketState {
         TicketState {
@@ -949,6 +948,27 @@ mod render_tests {
 ",
         );
         assert_eq!(rect_tuple(modal_rect(&app)), (16, 6, 88, 23));
+    }
+
+    #[test]
+    fn a_gtt_states_the_product_its_orders_carry() {
+        let app = mockup_app();
+        let mut state = mockup_gtt();
+        state.product = 3; // MTF
+        let text = modal_ascii(80, 24, |frame| draw_ticket(frame, &state, &app));
+        assert!(text.contains("|        Product  MTF (fixed)"), "{text}");
+
+        let confirm = build_confirm(&state, Some(1500.0), 0).expect("GTT review");
+        let PendingAction::PlaceGtt { form } = confirm.action else {
+            panic!("expected a place-GTT action");
+        };
+        let (_, orders) = form
+            .iter()
+            .find(|(key, _)| key == "orders")
+            .expect("orders field");
+        let orders: serde_json::Value = serde_json::from_str(orders).unwrap();
+        assert_eq!(orders[0]["product"], "MTF");
+        assert_eq!(orders[1]["product"], "MTF");
     }
 
     #[test]

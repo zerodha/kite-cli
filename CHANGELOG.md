@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The TUI GTT ticket shows the product it sends. On NSE the Product row used to read `CNC (fixed)` even when it sent MTF.
+
 ## [0.2.6] - 2026-11-27
 
 ### Changed
